@@ -80,30 +80,46 @@ async def health_check():
     return {"status": "ok"}
 
 
+# Get project root directory
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 @app.get("/api/env/check")
 async def check_environment():
     """Check if MediaCrawler environment is configured correctly"""
     try:
-        # Run uv run main.py --help command to check environment
-        process = await asyncio.create_subprocess_exec(
-            "uv", "run", "main.py", "--help",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd="."  # Project root directory
-        )
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(),
-            timeout=30.0  # 30 seconds timeout
-        )
+        # Use run_in_executor to run subprocess in a thread pool
+        # This avoids Windows asyncio subprocess issues
+        import platform
+        loop = asyncio.get_event_loop()
 
-        if process.returncode == 0:
+        def run_command():
+            if platform.system() == "Windows":
+                cmd = "uv run main.py --help"
+                shell = True
+            else:
+                cmd = ["uv", "run", "main.py", "--help"]
+                shell = False
+
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=PROJECT_ROOT,
+                shell=shell,
+                timeout=60
+            )
+            return result
+
+        result = await loop.run_in_executor(None, run_command)
+
+        if result.returncode == 0:
             return {
                 "success": True,
                 "message": "MediaCrawler environment configured correctly",
-                "output": stdout.decode("utf-8", errors="ignore")[:500]  # Truncate to first 500 characters
+                "output": result.stdout.decode("utf-8", errors="ignore")[:500]
             }
         else:
-            error_msg = stderr.decode("utf-8", errors="ignore") or stdout.decode("utf-8", errors="ignore")
+            error_msg = result.stderr.decode("utf-8", errors="ignore") or result.stdout.decode("utf-8", errors="ignore")
             return {
                 "success": False,
                 "message": "Environment check failed",
@@ -113,7 +129,7 @@ async def check_environment():
         return {
             "success": False,
             "message": "Environment check timeout",
-            "error": "Command execution exceeded 30 seconds"
+            "error": "Command execution exceeded 60 seconds"
         }
     except FileNotFoundError:
         return {
@@ -122,10 +138,11 @@ async def check_environment():
             "error": "Please ensure uv is installed and configured in system PATH"
         }
     except Exception as e:
+        import traceback
         return {
             "success": False,
             "message": "Environment check error",
-            "error": str(e)
+            "error": f"{str(e)}\n{traceback.format_exc()}"
         }
 
 
