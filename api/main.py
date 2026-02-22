@@ -168,6 +168,7 @@ async def get_config_options():
     return {
         "login_types": [
             {"value": "qrcode", "label": "QR Code Login"},
+            {"value": "phone", "label": "Phone Login"},
             {"value": "cookie", "label": "Cookie Login"},
         ],
         "crawler_types": [
@@ -182,6 +183,50 @@ async def get_config_options():
             {"value": "sqlite", "label": "SQLite Database"},
             {"value": "db", "label": "MySQL Database"},
             {"value": "mongodb", "label": "MongoDB Database"},
+            {"value": "postgres", "label": "PostgreSQL Database"},
+        ],
+        "proxy_providers": [
+            {"value": "kuaidaili", "label": "Kuaidaili (快代理)"},
+            {"value": "wandouhttp", "label": "WandouHTTP (豌豆HTTP)"},
+        ],
+    }
+
+
+@app.get("/api/config/all")
+async def get_all_config():
+    """Get all configuration including platforms and options"""
+    return {
+        "platforms": [
+            {"value": "xhs", "label": "Xiaohongshu", "icon": "book-open"},
+            {"value": "dy", "label": "Douyin", "icon": "music"},
+            {"value": "ks", "label": "Kuaishou", "icon": "video"},
+            {"value": "bili", "label": "Bilibili", "icon": "tv"},
+            {"value": "wb", "label": "Weibo", "icon": "message-circle"},
+            {"value": "tieba", "label": "Baidu Tieba", "icon": "messages-square"},
+            {"value": "zhihu", "label": "Zhihu", "icon": "help-circle"},
+        ],
+        "login_types": [
+            {"value": "qrcode", "label": "QR Code Login"},
+            {"value": "phone", "label": "Phone Login"},
+            {"value": "cookie", "label": "Cookie Login"},
+        ],
+        "crawler_types": [
+            {"value": "search", "label": "Search Mode"},
+            {"value": "detail", "label": "Detail Mode"},
+            {"value": "creator", "label": "Creator Mode"},
+        ],
+        "save_options": [
+            {"value": "json", "label": "JSON File"},
+            {"value": "csv", "label": "CSV File"},
+            {"value": "excel", "label": "Excel File"},
+            {"value": "sqlite", "label": "SQLite Database"},
+            {"value": "db", "label": "MySQL Database"},
+            {"value": "mongodb", "label": "MongoDB Database"},
+            {"value": "postgres", "label": "PostgreSQL Database"},
+        ],
+        "proxy_providers": [
+            {"value": "kuaidaili", "label": "Kuaidaili (快代理)"},
+            {"value": "wandouhttp", "label": "WandouHTTP (豌豆HTTP)"},
         ],
     }
 

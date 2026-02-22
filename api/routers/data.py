@@ -228,3 +228,77 @@ async def get_data_stats():
                 continue
 
     return stats
+
+
+@router.delete("/files/{file_path:path}")
+async def delete_file(file_path: str):
+    """Delete a data file"""
+    full_path = DATA_DIR / file_path
+
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if not full_path.is_file():
+        raise HTTPException(status_code=400, detail="Not a file")
+
+    # Security check: ensure within DATA_DIR
+    try:
+        full_path.resolve().relative_to(DATA_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        full_path.unlink()
+        return {"success": True, "message": f"File {file_path} deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+
+
+@router.post("/files/batch-delete")
+async def batch_delete_files(request: dict):
+    """Batch delete data files"""
+    files = request.get("files", [])
+
+    if not files:
+        raise HTTPException(status_code=400, detail="No files specified")
+
+    results = []
+    success_count = 0
+    error_count = 0
+
+    for file_path in files:
+        full_path = DATA_DIR / file_path
+
+        if not full_path.exists():
+            results.append({"file": file_path, "success": False, "error": "File not found"})
+            error_count += 1
+            continue
+
+        if not full_path.is_file():
+            results.append({"file": file_path, "success": False, "error": "Not a file"})
+            error_count += 1
+            continue
+
+        # Security check
+        try:
+            full_path.resolve().relative_to(DATA_DIR.resolve())
+        except ValueError:
+            results.append({"file": file_path, "success": False, "error": "Access denied"})
+            error_count += 1
+            continue
+
+        try:
+            full_path.unlink()
+            results.append({"file": file_path, "success": True})
+            success_count += 1
+        except Exception as e:
+            results.append({"file": file_path, "success": False, "error": str(e)})
+            error_count += 1
+
+    return {
+        "success": True,
+        "total": len(files),
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results
+    }

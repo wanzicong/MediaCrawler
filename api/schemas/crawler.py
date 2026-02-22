@@ -67,9 +67,17 @@ class CrawlerStartRequest(BaseModel):
     start_page: int = 1
     enable_comments: bool = True
     enable_sub_comments: bool = False
+    max_comments_count_singlenotes: int = 10  # Maximum number of first-level comments per post
     save_option: SaveDataOptionEnum = SaveDataOptionEnum.JSON
+    save_data_path: str = ""  # Custom data save path
     cookies: str = ""
     headless: bool = False
+    # Proxy configuration
+    enable_ip_proxy: bool = False
+    ip_proxy_pool_count: int = 2
+    ip_proxy_provider_name: str = "kuaidaili"
+    # Concurrency configuration
+    max_concurrency_num: int = 1
 
 
 class CrawlerStatusResponse(BaseModel):

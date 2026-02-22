@@ -225,10 +225,30 @@ class CrawlerManager:
         cmd.extend(["--get_comment", "true" if config.enable_comments else "false"])
         cmd.extend(["--get_sub_comment", "true" if config.enable_sub_comments else "false"])
 
+        # Max comments count per post
+        if config.max_comments_count_singlenotes != 10:
+            cmd.extend(["--max_comments_count_singlenotes", str(config.max_comments_count_singlenotes)])
+
+        # Save data path
+        if config.save_data_path:
+            cmd.extend(["--save_data_path", config.save_data_path])
+
         if config.cookies:
             cmd.extend(["--cookies", config.cookies])
 
         cmd.extend(["--headless", "true" if config.headless else "false"])
+
+        # Proxy configuration
+        cmd.extend(["--enable_ip_proxy", "true" if config.enable_ip_proxy else "false"])
+        if config.enable_ip_proxy:
+            if config.ip_proxy_pool_count != 2:
+                cmd.extend(["--ip_proxy_pool_count", str(config.ip_proxy_pool_count)])
+            if config.ip_proxy_provider_name != "kuaidaili":
+                cmd.extend(["--ip_proxy_provider_name", config.ip_proxy_provider_name])
+
+        # Concurrency configuration
+        if config.max_concurrency_num > 1:
+            cmd.extend(["--max_concurrency_num", str(config.max_concurrency_num)])
 
         return cmd
 
