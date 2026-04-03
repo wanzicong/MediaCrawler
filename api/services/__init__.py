@@ -17,5 +17,11 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 from .crawler_manager import CrawlerManager, crawler_manager
+from .db_service import DatabaseQueryService, db_query_service
 
-__all__ = ["CrawlerManager", "crawler_manager"]
+__all__ = [
+    "CrawlerManager",
+    "crawler_manager",
+    "DatabaseQueryService",
+    "db_query_service",
+]

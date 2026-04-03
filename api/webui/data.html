@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MediaCrawler - 数据查询</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+    header h1 { font-size: 28px; font-weight: 700; background: linear-gradient(135deg, var(--primary), #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav { display: flex; gap: 16px; }
+    .nav a { color: var(--text-muted); text-decoration: none; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }
+    .nav a:hover, .nav a.active { background: var(--card-bg); color: var(--text); }
+    .tabs { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .tab { padding: 10px 20px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s; color: var(--text-muted); }
+    .tab:hover { border-color: var(--primary); }
+    .tab.active { background: var(--primary); border-color: var(--primary); color: white; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .card-title { font-size: 18px; font-weight: 600; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .stat-label { color: var(--text-muted); font-size: 14px; margin-bottom: 8px; }
+    .stat-value { font-size: 32px; font-weight: 700; color: var(--primary); }
+    .stat-value.warning { color: var(--warning); }
+    .platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .platform-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .platform-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .platform-card.active { border-color: var(--primary); background: rgba(99, 102, 241, 0.1); }
+    .platform-icon { font-size: 32px; margin-bottom: 8px; }
+    .platform-name { font-weight: 500; }
+    .platform-count { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+    input, select { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; }
+    input:focus, select:focus { outline: none; border-color: var(--primary); }
+    input::placeholder { color: var(--text-muted); }
+    .btn { padding: 10px 20px; background: var(--primary); border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+    .btn:hover { background: var(--primary-hover); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: var(--card-bg); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--primary); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-weight: 500; font-size: 13px; text-transform: uppercase; }
+    tr:hover { background: rgba(99, 102, 241, 0.05); }
+    .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+    .pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 24px; }
+    .pagination button { padding: 8px 16px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; }
+    .pagination button:hover:not(:disabled) { border-color: var(--primary); }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pagination span { color: var(--text-muted); padding: 0 16px; }
+    .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+    .error { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--error); border-radius: 8px; padding: 16px; color: var(--error); margin-bottom: 20px; }
+    .empty { text-align: center; padding: 60px; color: var(--text-muted); }
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .badge-content { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+    .badge-comment { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+    .badge-creator { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .search-result { padding: 16px; border-bottom: 1px solid var(--border); }
+    .search-result:last-child { border-bottom: none; }
+    .search-result:hover { background: rgba(99, 102, 241, 0.05); }
+    .result-platform { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: var(--primary); color: white; margin-right: 8px; }
+    .result-title { font-weight: 500; margin-bottom: 8px; }
+    .result-snippet { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+    .result-meta { font-size: 12px; color: var(--text-muted); }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 500px; width: 90%; }
+    .modal h3 { font-size: 20px; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 14px; }
+    .form-group select, .form-group input { width: 100%; }
+    .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px 24px; display: flex; align-items: center; gap: 12px; z-index: 1001; animation: slideIn 0.3s ease; }
+    .toast.success { border-color: var(--success); }
+    .toast.error { border-color: var(--error); }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>MediaCrawler 数据中心</h1>
+      <nav class="nav">
+        <a href="/">爬虫控制</a>
+        <a href="/data.html" class="active">数据查询</a>
+      </nav>
+    </header>
+
+    <!-- 全局统计 -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-label">总内容数</div>
+        <div class="stat-value" id="totalContent">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">总评论数</div>
+        <div class="stat-value" id="totalComments">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">总创作者</div>
+        <div class="stat-value" id="totalCreators">-</div>
+      </div>
+    </div>
+
+    <!-- 标签页 -->
+    <div class="tabs">
+      <button class="tab active" data-tab="content">内容列表</button>
+      <button class="tab" data-tab="comments">评论列表</button>
+      <button class="tab" data-tab="creators">创作者</button>
+      <button class="tab" data-tab="search">全局搜索</button>
+      <button class="tab" data-tab="export">数据导出</button>
+    </div>
+
+    <!-- 内容列表 -->
+    <div id="contentTab">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">内容列表查询</span>
+          <button class="btn btn-secondary" onclick="openExportModal('content')">导出</button>
+        </div>
+        <div class="filters">
+          <select id="contentPlatform" onchange="loadContent()">
+            <option value="">全部平台</option>
+            <option value="xhs">小红书</option>
+            <option value="douyin">抖音</option>
+            <option value="bilibili">B站</option>
+            <option value="kuaishou">快手</option>
+            <option value="weibo">微博</option>
+            <option value="tieba">贴吧</option>
+            <option value="zhihu">知乎</option>
+          </select>
+          <input type="text" id="contentKeyword" placeholder="搜索关键词" onkeydown="if(event.key==='Enter')loadContent()">
+          <input type="number" id="contentStartTime" placeholder="开始时间戳">
+          <input type="number" id="contentEndTime" placeholder="结束时间戳">
+          <select id="contentSort">
+            <option value="create_time">按时间</option>
+            <option value="liked_count">按点赞</option>
+            <option value="comment_count">按评论</option>
+          </select>
+          <button class="btn" onclick="loadContent()">查询</button>
+        </div>
+        <div id="contentError" class="error hidden"></div>
+        <div id="contentTable" class="table-wrapper"></div>
+        <div class="pagination" id="contentPagination"></div>
+      </div>
+    </div>
+
+    <!-- 评论列表 -->
+    <div id="commentsTab" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">评论列表查询</span>
+          <button class="btn btn-secondary" onclick="openExportModal('comments')">导出</button>
+        </div>
+        <div class="filters">
+          <select id="commentPlatform" onchange="loadComments()">
+            <option value="">全部平台</option>
+            <option value="xhs">小红书</option>
+            <option value="douyin">抖音</option>
+            <option value="bilibili">B站</option>
+            <option value="kuaishou">快手</option>
+            <option value="weibo">微博</option>
+            <option value="tieba">贴吧</option>
+            <option value="zhihu">知乎</option>
+          </select>
+          <input type="text" id="commentKeyword" placeholder="评论内容关键词" onkeydown="if(event.key==='Enter')loadComments()">
+          <input type="number" id="commentContentId" placeholder="内容ID">
+          <button class="btn" onclick="loadComments()">查询</button>
+        </div>
+        <div id="commentError" class="error hidden"></div>
+        <div id="commentTable" class="table-wrapper"></div>
+        <div class="pagination" id="commentPagination"></div>
+      </div>
+    </div>
+
+    <!-- 创作者 -->
+    <div id="creatorsTab" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">创作者查询</span>
+          <button class="btn btn-secondary" onclick="openExportModal('creators')">导出</button>
+        </div>
+        <div class="filters">
+          <select id="creatorPlatform" onchange="loadCreators()">
+            <option value="">全部平台</option>
+            <option value="xhs">小红书</option>
+            <option value="douyin">抖音</option>
+            <option value="bilibili">B站</option>
+            <option value="weibo">微博</option>
+            <option value="tieba">贴吧</option>
+            <option value="zhihu">知乎</option>
+          </select>
+          <input type="text" id="creatorKeyword" placeholder="搜索关键词" onkeydown="if(event.key==='Enter')loadCreators()">
+          <select id="creatorSort">
+            <option value="fans">按粉丝</option>
+            <option value="follows">按关注</option>
+            <option value="interaction">按互动</option>
+          </select>
+          <button class="btn" onclick="loadCreators()">查询</button>
+        </div>
+        <div id="creatorError" class="error hidden"></div>
+        <div id="creatorTable" class="table-wrapper"></div>
+        <div class="pagination" id="creatorPagination"></div>
+      </div>
+    </div>
+
+    <!-- 全局搜索 -->
+    <div id="searchTab" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">跨平台全局搜索</span>
+        </div>
+        <div class="filters">
+          <input type="text" id="searchKeyword" placeholder="输入搜索关键词" style="flex: 1;">
+          <select id="searchPlatforms" multiple style="min-width: 200px; height: 42px;">
+            <option value="xhs">小红书</option>
+            <option value="douyin">抖音</option>
+            <option value="bilibili">B站</option>
+            <option value="kuaishou">快手</option>
+            <option value="weibo">微博</option>
+            <option value="tieba">贴吧</option>
+            <option value="zhihu">知乎</option>
+          </select>
+          <button class="btn" onclick="doSearch()">搜索</button>
+        </div>
+        <div id="searchError" class="error hidden"></div>
+        <div id="searchResults"></div>
+        <div class="pagination" id="searchPagination"></div>
+      </div>
+    </div>
+
+    <!-- 数据导出 -->
+    <div id="exportTab" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">数据导出</span>
+        </div>
+        <div class="filters" style="flex-direction: column; align-items: stretch;">
+          <div class="form-group">
+            <label>平台</label>
+            <select id="exportPlatform">
+              <option value="">全部平台</option>
+              <option value="xhs">小红书</option>
+              <option value="douyin">抖音</option>
+              <option value="bilibili">B站</option>
+              <option value="kuaishou">快手</option>
+              <option value="weibo">微博</option>
+              <option value="tieba">贴吧</option>
+              <option value="zhihu">知乎</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>数据类型</label>
+            <select id="exportType">
+              <option value="content">内容</option>
+              <option value="comments">评论</option>
+              <option value="creators">创作者</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>导出格式</label>
+            <select id="exportFormat">
+              <option value="json">JSON</option>
+              <option value="csv">CSV</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>最大记录数</label>
+            <input type="number" id="exportMaxRecords" value="1000" min="1" max="10000">
+          </div>
+          <button class="btn" onclick="doExport()" style="margin-top: 16px;">导出数据</button>
+        </div>
+        <div id="exportResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script>
+    const API_BASE = '/api/db';
+    let currentPage = { content: 1, comments: 1, creators: 1, search: 1 };
+    let totalPages = { content: 0, comments: 0, creators: 0, search: 0 };
+    let pageSize = 20;
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      initTabs();
+      loadStats();
+    });
+
+    // 标签页切换
+    function initTabs() {
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          document.querySelectorAll('[id$="Tab"]').forEach(p => p.classList.add('hidden'));
+          document.getElementById(tab.dataset.tab + 'Tab').classList.remove('hidden');
+        });
+      });
+    }
+
+    // 显示Toast
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span>${type === 'success' ? '✓' : '✕'}</span> ${message}`;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    // 加载统计数据
+    async function loadStats() {
+      try {
+        const resp = await fetch(`${API_BASE}/stats`);
+        const data = await resp.json();
+        if (data.success) {
+          document.getElementById('totalContent').textContent = data.data.total_content || 0;
+          document.getElementById('totalComments').textContent = data.data.total_comments || 0;
+          document.getElementById('totalCreators').textContent = data.data.total_creators || 0;
+        }
+      } catch (e) {
+        console.error('加载统计失败:', e);
+      }
+    }
+
+    // 加载内容列表
+    async function loadContent() {
+      const platform = document.getElementById('contentPlatform').value;
+      const keyword = document.getElementById('contentKeyword').value;
+      const sortBy = document.getElementById('contentSort').value;
+      const startTime = document.getElementById('contentStartTime').value;
+      const endTime = document.getElementById('contentEndTime').value;
+      const errorEl = document.getElementById('contentError');
+      const tableEl = document.getElementById('contentTable');
+
+      if (!tableEl || !errorEl) {
+        console.error('Required element not found');
+        return;
+      }
+
+      if (!platform) {
+        errorEl.textContent = '请选择平台';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      errorEl.classList.add('hidden');
+      tableEl.innerHTML = '<div class="loading">加载中...</div>';
+
+      try {
+        const params = new URLSearchParams({
+          page: currentPage.content,
+          page_size: pageSize,
+          sort_by: sortBy
+        });
+        if (keyword) params.append('keyword', keyword);
+        if (startTime) params.append('start_time', startTime);
+        if (endTime) params.append('end_time', endTime);
+
+        const resp = await fetch(`${API_BASE}/${platform}/content?${params}`);
+        const data = await resp.json();
+
+        if (data.success) {
+          renderContentTable(data.data);
+          totalPages.content = data.data.total_pages;
+          renderPagination('content');
+        } else {
+          errorEl.textContent = data.detail || '查询失败';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        errorEl.textContent = '请求失败: ' + e.message;
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function renderContentTable(data) {
+      const { items, total, page } = data;
+      const tableEl = document.getElementById('contentTable');
+
+      if (!tableEl) {
+        console.error('contentTable element not found');
+        return;
+      }
+
+      if (!items || items.length === 0) {
+        tableEl.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>暂无数据</div>';
+        return;
+      }
+
+      const platform = document.getElementById('contentPlatform').value;
+      let columns = ['title', 'nickname', 'liked_count', 'comment_count', 'create_time'];
+      if (platform === 'weibo') columns = ['content', 'nickname', 'liked_count', 'comments_count', 'create_time'];
+      if (platform === 'douyin') columns = ['title', 'nickname', 'liked_count', 'comment_count', 'create_time'];
+
+      let html = `<table><thead><tr><th>标题/内容</th><th>作者</th><th>点赞</th><th>评论</th><th>时间</th><th>操作</th></tr></thead><tbody>`;
+      items.forEach(item => {
+        const title = item.title || item.desc || item.content || '-';
+        const liked = item.liked_count || item.voteup_count || '-';
+        const comment = item.comment_count || item.comments_count || '-';
+        const time = item.create_time ? new Date(item.create_time * 1000).toLocaleString() : '-';
+        html += `<tr>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${title}</td>
+          <td>${item.nickname || '-'}</td>
+          <td>${liked}</td>
+          <td>${comment}</td>
+          <td>${time}</td>
+          <td><button class="btn btn-secondary" onclick="viewContentComments('${platform}', '${item.note_id || item.video_id || item.aweme_id}')">查看评论</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      tableEl.innerHTML = html;
+    }
+
+    // 查看内容评论
+    async function viewContentComments(platform, contentId) {
+      if (!platform || !contentId) {
+        showToast('缺少内容ID或平台信息', 'error');
+        return;
+      }
+      document.querySelector('[data-tab="comments"]').click();
+      document.getElementById('commentPlatform').value = platform;
+      document.getElementById('commentContentId').value = contentId;
+      await loadComments();
+    }
+
+    // 加载评论列表
+    async function loadComments() {
+      const platform = document.getElementById('commentPlatform').value;
+      const keyword = document.getElementById('commentKeyword').value;
+      const contentId = document.getElementById('commentContentId').value;
+      const errorEl = document.getElementById('commentError');
+      const tableEl = document.getElementById('commentTable');
+
+      if (!tableEl || !errorEl) {
+        console.error('Required element not found');
+        return;
+      }
+
+      if (!platform) {
+        errorEl.textContent = '请选择平台';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      errorEl.classList.add('hidden');
+      tableEl.innerHTML = '<div class="loading">加载中...</div>';
+
+      try {
+        const params = new URLSearchParams({
+          page: currentPage.comments,
+          page_size: pageSize
+        });
+        if (keyword) params.append('keyword', keyword);
+
+        let url = `${API_BASE}/${platform}/comments?${params}`;
+        if (contentId) {
+          url = `${API_BASE}/${platform}/content/${contentId}/comments?${params}`;
+        }
+
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        if (data.success) {
+          renderCommentTable(data.data, platform);
+          totalPages.comments = data.data.total_pages;
+          renderPagination('comments');
+        } else {
+          errorEl.textContent = data.detail || '查询失败';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        errorEl.textContent = '请求失败: ' + e.message;
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function renderCommentTable(data, platform) {
+      const { items, total, page } = data;
+      const tableEl = document.getElementById('commentTable');
+
+      if (!tableEl) {
+        console.error('commentTable element not found');
+        return;
+      }
+
+      if (!items || items.length === 0) {
+        tableEl.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>暂无数据</div>';
+        return;
+      }
+
+      let html = `<table><thead><tr><th>评论内容</th><th>用户</th><th>点赞</th><th>子评论</th><th>时间</th></tr></thead><tbody>`;
+      items.forEach(item => {
+        const content = item.content || '-';
+        const time = item.create_time ? new Date(item.create_time * 1000).toLocaleString() : '-';
+        html += `<tr>
+          <td style="max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${content}</td>
+          <td>${item.nickname || '-'}</td>
+          <td>${item.like_count || 0}</td>
+          <td>${item.sub_comment_count || 0}</td>
+          <td>${time}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      tableEl.innerHTML = html;
+    }
+
+    // 加载创作者列表
+    async function loadCreators() {
+      const platform = document.getElementById('creatorPlatform').value;
+      const keyword = document.getElementById('creatorKeyword').value;
+      const sortBy = document.getElementById('creatorSort').value;
+      const errorEl = document.getElementById('creatorError');
+      const tableEl = document.getElementById('creatorTable');
+
+      if (!tableEl || !errorEl) {
+        console.error('Required element not found');
+        return;
+      }
+
+      if (!platform) {
+        errorEl.textContent = '请选择平台';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      errorEl.classList.add('hidden');
+      tableEl.innerHTML = '<div class="loading">加载中...</div>';
+
+      try {
+        const params = new URLSearchParams({
+          page: currentPage.creators,
+          page_size: pageSize,
+          sort_by: sortBy
+        });
+        if (keyword) params.append('keyword', keyword);
+
+        const resp = await fetch(`${API_BASE}/${platform}/creators?${params}`);
+        const data = await resp.json();
+
+        if (data.success) {
+          renderCreatorTable(data.data, platform);
+          totalPages.creators = data.data.total_pages;
+          renderPagination('creators');
+        } else {
+          errorEl.textContent = data.detail || '查询失败';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        errorEl.textContent = '请求失败: ' + e.message;
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function renderCreatorTable(data, platform) {
+      const { items, total, page } = data;
+      const tableEl = document.getElementById('creatorTable');
+
+      if (!tableEl) {
+        console.error('creatorTable element not found');
+        return;
+      }
+
+      if (!items || items.length === 0) {
+        tableEl.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>暂无数据</div>';
+        return;
+      }
+
+      let html = `<table><thead><tr><th>用户ID</th><th>昵称</th><th>粉丝</th><th>关注</th><th>互动</th><th>操作</th></tr></thead><tbody>`;
+      items.forEach(item => {
+        const fans = item.fans || item.total_fans || '-';
+        const follows = item.follows || '-';
+        const interaction = item.interaction || '-';
+        html += `<tr>
+          <td>${item.user_id || '-'}</td>
+          <td>${item.nickname || '-'}</td>
+          <td>${fans}</td>
+          <td>${follows}</td>
+          <td>${interaction}</td>
+          <td><button class="btn btn-secondary" onclick="viewCreatorContent('${platform}', '${item.user_id}')">查看内容</button></td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      tableEl.innerHTML = html;
+    }
+
+    // 查看创作者内容
+    async function viewCreatorContent(platform, creatorId) {
+      // 切换到内容标签并查询该创作者的内容
+      document.querySelector('[data-tab="content"]').click();
+      document.getElementById('contentPlatform').value = platform;
+      await loadContent();
+    }
+
+    // 全局搜索
+    async function doSearch() {
+      const keyword = document.getElementById('searchKeyword').value;
+      const platforms = Array.from(document.getElementById('searchPlatforms').selectedOptions).map(o => o.value);
+      const errorEl = document.getElementById('searchError');
+      const resultsEl = document.getElementById('searchResults');
+
+      if (!errorEl || !resultsEl) {
+        console.error('Required element not found');
+        return;
+      }
+
+      if (!keyword) {
+        errorEl.textContent = '请输入搜索关键词';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      errorEl.classList.add('hidden');
+      resultsEl.innerHTML = '<div class="loading">搜索中...</div>';
+
+      try {
+        const params = new URLSearchParams({
+          keyword,
+          page: currentPage.search,
+          page_size: pageSize
+        });
+        if (platforms.length) params.append('platforms', platforms.join(','));
+
+        const resp = await fetch(`${API_BASE}/search?${params}`);
+        const data = await resp.json();
+
+        if (data.success) {
+          renderSearchResults(data.data);
+          totalPages.search = data.data.total_pages;
+          renderPagination('search');
+        } else {
+          errorEl.textContent = data.detail || '搜索失败';
+          errorEl.classList.remove('hidden');
+        }
+      } catch (e) {
+        errorEl.textContent = '请求失败: ' + e.message;
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function renderSearchResults(data) {
+      const { items, total, page } = data;
+      const resultsEl = document.getElementById('searchResults');
+
+      if (!resultsEl) {
+        console.error('searchResults element not found');
+        return;
+      }
+
+      if (!items || items.length === 0) {
+        resultsEl.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div>未找到相关结果</div>';
+        return;
+      }
+
+      let html = `<div style="margin-bottom: 16px; color: var(--text-muted);">找到 ${total} 条结果</div>`;
+      items.forEach(item => {
+        const time = item.create_time ? new Date(item.create_time * 1000).toLocaleString() : '-';
+        html += `<div class="search-result">
+          <span class="result-platform">${item.platform}</span>
+          <div class="result-title">${item.title || '-'}</div>
+          <div class="result-snippet">${item.content || '-'}</div>
+          <div class="result-meta">👤 ${item.nickname || '-'} | 👍 ${item.liked_count || 0} | 💬 ${item.comment_count || 0} | 🕒 ${time}</div>
+        </div>`;
+      });
+      resultsEl.innerHTML = html;
+    }
+
+    // 数据导出
+    async function doExport() {
+      const platform = document.getElementById('exportPlatform').value;
+      const type = document.getElementById('exportType').value;
+      const format = document.getElementById('exportFormat').value;
+      const maxRecords = document.getElementById('exportMaxRecords').value;
+      const resultEl = document.getElementById('exportResult');
+
+      resultEl.innerHTML = '<div class="loading">导出中...</div>';
+
+      try {
+        const resp = await fetch(`${API_BASE}/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: platform || null,
+            content_type: type,
+            format,
+            max_records: parseInt(maxRecords)
+          })
+        });
+
+        if (format === 'csv') {
+          const blob = await resp.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${platform || 'all'}_${type}_${Date.now()}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          showToast('导出成功');
+        } else {
+          const data = await resp.json();
+          if (data.success) {
+            resultEl.innerHTML = `<div class="card" style="margin-top: 16px;">
+              <div class="card-title">导出成功</div>
+              <p style="color: var(--text-muted); margin-top: 8px;">共 ${data.total} 条记录</p>
+              <pre style="margin-top: 16px; max-height: 400px; overflow: auto; background: var(--bg); padding: 16px; border-radius: 8px; font-size: 12px;">${JSON.stringify(data.data, null, 2)}</pre>
+            </div>`;
+            showToast('导出成功');
+          } else {
+            resultEl.innerHTML = `<div class="error">${data.detail || '导出失败'}</div>`;
+          }
+        }
+      } catch (e) {
+        resultEl.innerHTML = `<div class="error">请求失败: ${e.message}</div>`;
+      }
+    }
+
+    // 导出弹窗
+    function openExportModal(type) {
+      document.getElementById('exportType').value = type;
+      document.querySelector('[data-tab="export"]').click();
+    }
+
+    // 渲染分页
+    function renderPagination(tab) {
+      const paginationEl = document.getElementById(tab + 'Pagination');
+      if (!paginationEl) {
+        console.error('Pagination element not found:', tab + 'Pagination');
+        return;
+      }
+      const page = currentPage[tab];
+      const total = totalPages[tab];
+
+      if (total <= 1) {
+        paginationEl.innerHTML = '';
+        return;
+      }
+
+      paginationEl.innerHTML = `
+        <button onclick="goToPage('${tab}', ${page - 1})" ${page <= 1 ? 'disabled' : ''}>上一页</button>
+        <span>第 ${page} / ${total} 页</span>
+        <button onclick="goToPage('${tab}', ${page + 1})" ${page >= total ? 'disabled' : ''}>下一页</button>
+      `;
+    }
+
+    // 翻页
+    function goToPage(tab, page) {
+      if (page < 1 || page > totalPages[tab]) return;
+      currentPage[tab] = page;
+      if (tab === 'content') loadContent();
+      else if (tab === 'comments') loadComments();
+      else if (tab === 'creators') loadCreators();
+      else if (tab === 'search') doSearch();
+    }
+  </script>
+</body>
+</html>
