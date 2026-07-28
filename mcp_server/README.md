@@ -24,13 +24,9 @@ MCP 地址为 `http://127.0.0.1:8765/mcp`，健康检查地址为
 
 ## 局域网或公网
 
-监听非本机地址时默认强制要求 Bearer Token。Token 只通过环境变量传入，
-避免出现在命令行和进程列表中。
-
 PowerShell 示例：
 
 ```powershell
-$env:MEDIACRAWLER_MCP_TOKEN = "<使用随机生成的长字符串>"
 uv run python -m mcp_server `
   --transport streamable-http `
   --host 0.0.0.0 `
@@ -41,7 +37,6 @@ uv run python -m mcp_server `
 Linux/macOS 示例：
 
 ```shell
-MEDIACRAWLER_MCP_TOKEN='<使用随机生成的长字符串>' \
 uv run python -m mcp_server \
   --transport streamable-http \
   --host 0.0.0.0 \
@@ -49,15 +44,12 @@ uv run python -m mcp_server \
   --allowed-host '192.168.1.10:*'
 ```
 
-客户端请求需携带：
-
-```text
-Authorization: Bearer <同一个 Token>
-```
-
 若通过域名访问，应把域名加入 `--allowed-host`。浏览器客户端还需通过
-`--allowed-origin` 指定允许的 Origin。公网部署应在 Nginx、Caddy 等反向
-代理后启用 HTTPS，不建议直接暴露明文 HTTP。
+`--allowed-origin` 指定允许的 Origin。
+
+服务本身不进行应用层身份鉴权。任何能够访问该端口的客户端都可以调用爬虫
+工具，因此应通过防火墙、可信局域网、VPN 或反向代理限制访问。公网部署时，
+应由 Nginx、Caddy、API Gateway 等上游服务提供 HTTPS 和身份认证。
 
 ## 环境变量
 
@@ -67,10 +59,8 @@ Authorization: Bearer <同一个 Token>
 | `MEDIACRAWLER_MCP_HOST` | `127.0.0.1` | HTTP 监听地址 |
 | `MEDIACRAWLER_MCP_PORT` | `8765` | HTTP 监听端口 |
 | `MEDIACRAWLER_MCP_PATH` | `/mcp` | MCP HTTP 路径 |
-| `MEDIACRAWLER_MCP_TOKEN` | 空 | Bearer Token |
 | `MEDIACRAWLER_MCP_ALLOWED_HOSTS` | 自动 | 逗号分隔的 Host 白名单 |
 | `MEDIACRAWLER_MCP_ALLOWED_ORIGINS` | 空 | 逗号分隔的 Origin 白名单 |
 
-服务还会启用 MCP SDK 的 DNS 重绑定保护。只有显式使用
-`--allow-insecure-network` 才能在非本机地址上无 Token 运行，不建议在生产
-环境使用该参数。
+服务仍会启用 MCP SDK 的 DNS 重绑定保护。监听 `0.0.0.0` 或 `::` 时必须
+显式配置客户端将使用的 `--allowed-host`。

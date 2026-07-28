@@ -26,10 +26,8 @@ def test_network_config_defaults_to_local_streamable_http(
         "MEDIACRAWLER_MCP_HOST",
         "MEDIACRAWLER_MCP_PORT",
         "MEDIACRAWLER_MCP_PATH",
-        "MEDIACRAWLER_MCP_TOKEN",
         "MEDIACRAWLER_MCP_ALLOWED_HOSTS",
         "MEDIACRAWLER_MCP_ALLOWED_ORIGINS",
-        "MEDIACRAWLER_MCP_ALLOW_INSECURE_NETWORK",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -41,18 +39,20 @@ def test_network_config_defaults_to_local_streamable_http(
     assert "127.0.0.1:*" in config.effective_allowed_hosts()
 
 
-def test_network_config_requires_token_for_non_loopback() -> None:
-    with pytest.raises(ValueError, match="MEDIACRAWLER_MCP_TOKEN"):
-        MCPServerConfig(
-            transport="streamable-http",
-            host="192.168.1.10",
-        ).validated()
+def test_network_config_allows_non_loopback_without_authentication() -> None:
+    config = MCPServerConfig(
+        transport="streamable-http",
+        host="192.168.1.10",
+    ).validated()
+
+    assert config.host == "192.168.1.10"
+    assert config.effective_allowed_hosts() == [
+        "192.168.1.10",
+        "192.168.1.10:*",
+    ]
 
 
-def test_wildcard_bind_requires_explicit_allowed_host(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("MEDIACRAWLER_MCP_TOKEN", "test-token")
+def test_wildcard_bind_requires_explicit_allowed_host() -> None:
     with pytest.raises(ValueError, match="allowed-host"):
         parse_server_config(
             [
@@ -65,12 +65,10 @@ def test_wildcard_bind_requires_explicit_allowed_host(
 
 
 @pytest.mark.asyncio
-async def test_streamable_http_network_transport_with_bearer_token() -> None:
+async def test_streamable_http_network_transport_without_authentication() -> None:
     port = _free_local_port()
-    token = "network-test-token"
     endpoint = f"http://127.0.0.1:{port}/mcp"
     environment = os.environ.copy()
-    environment["MEDIACRAWLER_MCP_TOKEN"] = token
     process = subprocess.Popen(
         [
             sys.executable,
@@ -106,14 +104,7 @@ async def test_streamable_http_network_transport_with_bearer_token() -> None:
         else:
             pytest.fail("网络 MCP 服务未在 15 秒内启动")
 
-        unauthorized = httpx.post(endpoint, json={}, timeout=2)
-        assert unauthorized.status_code == 401
-        assert unauthorized.headers["www-authenticate"] == "Bearer"
-
-        async with streamablehttp_client(
-            endpoint,
-            headers={"Authorization": f"Bearer {token}"},
-        ) as streams:
+        async with streamablehttp_client(endpoint) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()
                 tools = (await session.list_tools()).tools

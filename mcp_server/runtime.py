@@ -3,22 +3,11 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import os
-import secrets
 from dataclasses import dataclass
 from typing import Literal
 
-from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
-
 
 Transport = Literal["stdio", "streamable-http"]
-
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -53,10 +42,8 @@ class MCPServerConfig:
     host: str = "127.0.0.1"
     port: int = 8765
     path: str = "/mcp"
-    token: str = ""
     allowed_hosts: tuple[str, ...] = ()
     allowed_origins: tuple[str, ...] = ()
-    allow_insecure_network: bool = False
 
     def validated(self) -> "MCPServerConfig":
         if not 1 <= self.port <= 65535:
@@ -70,18 +57,10 @@ class MCPServerConfig:
                 host=self.host,
                 port=self.port,
                 path=normalized_path,
-                token=self.token,
                 allowed_hosts=self.allowed_hosts,
                 allowed_origins=self.allowed_origins,
-                allow_insecure_network=self.allow_insecure_network,
             )
 
-        loopback = is_loopback_host(self.host)
-        if not loopback and not self.token and not self.allow_insecure_network:
-            raise ValueError(
-                "监听非本机地址时必须设置 MEDIACRAWLER_MCP_TOKEN；"
-                "如确需无鉴权运行，请显式添加 --allow-insecure-network"
-            )
         if self.host in {"0.0.0.0", "::"} and not self.allowed_hosts:
             raise ValueError(
                 "监听通配地址时必须通过 --allowed-host 或 "
@@ -92,10 +71,8 @@ class MCPServerConfig:
             host=self.host,
             port=self.port,
             path=normalized_path,
-            token=self.token,
             allowed_hosts=self.allowed_hosts,
             allowed_origins=self.allowed_origins,
-            allow_insecure_network=self.allow_insecure_network,
         )
 
     def effective_allowed_hosts(self) -> list[str]:
@@ -151,19 +128,12 @@ def parse_server_config(argv: list[str] | None = None) -> MCPServerConfig:
         default=None,
         help="允许的浏览器 Origin，可重复传入",
     )
-    parser.add_argument(
-        "--allow-insecure-network",
-        action="store_true",
-        default=_env_bool("MEDIACRAWLER_MCP_ALLOW_INSECURE_NETWORK"),
-        help="允许在非本机地址上无 Token 运行（不推荐）",
-    )
     args = parser.parse_args(argv)
     return MCPServerConfig(
         transport=args.transport,
         host=args.host,
         port=args.port,
         path=args.path,
-        token=os.getenv("MEDIACRAWLER_MCP_TOKEN", "").strip(),
         allowed_hosts=tuple(
             args.allowed_hosts
             if args.allowed_hosts is not None
@@ -174,48 +144,4 @@ def parse_server_config(argv: list[str] | None = None) -> MCPServerConfig:
             if args.allowed_origins is not None
             else _csv_env("MEDIACRAWLER_MCP_ALLOWED_ORIGINS")
         ),
-        allow_insecure_network=args.allow_insecure_network,
     ).validated()
-
-
-class BearerTokenMiddleware:
-    """Small static-token guard for self-hosted Streamable HTTP deployments."""
-
-    def __init__(
-        self,
-        app: ASGIApp,
-        token: str,
-        *,
-        public_paths: frozenset[str] = frozenset({"/health"}),
-    ):
-        self.app = app
-        self.token = token
-        self.public_paths = public_paths
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if (
-            scope["type"] == "http"
-            and scope.get("path", "") not in self.public_paths
-            and not self._authorized(scope)
-        ):
-            response = JSONResponse(
-                {"error": "unauthorized"},
-                status_code=401,
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-            await response(scope, receive, send)
-            return
-        await self.app(scope, receive, send)
-
-    def _authorized(self, scope: Scope) -> bool:
-        headers = {
-            key.decode("latin-1").lower(): value.decode("latin-1")
-            for key, value in scope.get("headers", [])
-        }
-        authorization = headers.get("authorization", "")
-        scheme, separator, credentials = authorization.partition(" ")
-        return bool(
-            separator
-            and scheme.lower() == "bearer"
-            and secrets.compare_digest(credentials, self.token)
-        )

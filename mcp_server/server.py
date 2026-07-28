@@ -25,7 +25,7 @@ from media_pipeline import (
 
 from .crawler_runner import run_crawler
 from .data_reader import get_data_summary, get_full_data
-from .runtime import BearerTokenMiddleware, parse_server_config
+from .runtime import parse_server_config
 
 mcp = FastMCP("MediaCrawler")
 
@@ -530,8 +530,6 @@ def main(argv: list[str] | None = None) -> None:
         allowed_origins=list(server_config.allowed_origins),
     )
     app = mcp.streamable_http_app()
-    if server_config.token:
-        app = BearerTokenMiddleware(app, server_config.token)
     uvicorn.run(
         app,
         host=server_config.host,
