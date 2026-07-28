@@ -183,4 +183,5 @@ agent_zone
 debug_tools
 
 database/*.db
+/videodl_outputs/
 .omx/

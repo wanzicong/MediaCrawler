@@ -56,7 +56,7 @@ SAVE_LOGIN_STATE = True
 # 是否启用 CDP 模式 - 使用用户本地的 Chrome/Edge 浏览器进行爬取，具有更好的反检测能力
 # 开启后，会自动检测并启动用户的 Chrome/Edge 浏览器，通过 CDP 协议进行控制
 # 该方式使用真实浏览器环境，包括用户的扩展、Cookie 和设置，大幅降低被风控检测的风险
-ENABLE_CDP_MODE = True
+ENABLE_CDP_MODE = False
 
 # CDP 调试端口，用于与浏览器通信
 # 如果端口被占用，系统会自动尝试下一个可用端口
@@ -87,9 +87,10 @@ CDP_CONNECT_EXISTING = True
 AUTO_CLOSE_BROWSER = True
 
 # Data saving type option configuration, supports: csv, db, json, jsonl, sqlite, excel, postgres. It is best to save to DB, with deduplication function.
-SAVE_DATA_OPTION = "jsonl"  # csv or db or json or jsonl or sqlite or excel or postgres
+# 默认 sqlite：MediaCrawler SQLAlchemy ORM 支持零依赖落盘到 database/sqlite_tables.db。
+SAVE_DATA_OPTION = "sqlite"  # csv or db or json or jsonl or sqlite or excel or postgres
 
-# Data saving path, if not specified by default, it will be saved to the data folder.
+# Data saving path，留空表示使用各存储实现的默认路径。
 SAVE_DATA_PATH = ""
 
 # Browser file configuration cached by the user's browser

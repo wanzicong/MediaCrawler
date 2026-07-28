@@ -14,6 +14,8 @@ export interface CrawlerConfig {
   login_type: string
   crawler_type: string
   keywords: string
+  specified_ids: string
+  creator_ids: string
   start_page: number
   enable_comments: boolean
   enable_sub_comments: boolean
