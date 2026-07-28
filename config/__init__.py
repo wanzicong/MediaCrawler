@@ -20,3 +20,8 @@
 
 from .base_config import *
 from .db_config import *
+
+
+def is_media_download_enabled() -> bool:
+    """Read the runtime flags mutated by CLI/API parsing on this package."""
+    return bool(DOWNLOAD_MEDIA or ENABLE_GET_MEIDAS)

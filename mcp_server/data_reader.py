@@ -14,6 +14,13 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # 数据存储根目录
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
+# MCP 使用短平台代号，部分文件存储实现使用完整英文目录名。
+PLATFORM_DATA_DIRS = {
+    "dy": "douyin",
+    "ks": "kuaishou",
+    "wb": "weibo",
+}
+
 
 def _get_date_str() -> str:
     """获取当前日期字符串 (YYYY-MM-DD)"""
@@ -40,7 +47,8 @@ def find_data_files(
     if date_str is None:
         date_str = _get_date_str()
 
-    base_path = os.path.join(DATA_DIR, platform, file_type)
+    platform_dir = PLATFORM_DATA_DIRS.get(platform, platform)
+    base_path = os.path.join(DATA_DIR, platform_dir, file_type)
     files: Dict[str, str] = {}
 
     if not os.path.exists(base_path):

@@ -26,6 +26,7 @@ async def test_download_media_cli_updates_canonical_and_legacy_flags(
     assert args.transcribe_media is False
     assert config.DOWNLOAD_MEDIA is True
     assert config.ENABLE_GET_MEIDAS is True
+    assert config.is_media_download_enabled() is True
     assert config.MEDIA_RUN_ID == "cli-run"
 
 
