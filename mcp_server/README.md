@@ -22,6 +22,34 @@ uv run python -m mcp_server --transport streamable-http
 MCP 地址为 `http://127.0.0.1:8765/mcp`，健康检查地址为
 `http://127.0.0.1:8765/health`。
 
+### Windows 一键启动与停止
+
+项目根目录提供了可直接运行的脚本：
+
+```powershell
+.\start_mcp_server.bat
+.\stop_mcp_server.bat
+```
+
+启动脚本会在后台运行服务，等待健康检查通过，并把 PID 状态写入
+`data/runtime/mcp_server.json`。日志保存在：
+
+```text
+logs/mcp_server.stdout.log
+logs/mcp_server.stderr.log
+```
+
+监听局域网的示例：
+
+```powershell
+.\start_mcp_server.bat `
+  -ListenHost 0.0.0.0 `
+  -AllowedHost "192.168.1.10:*"
+```
+
+重复执行启动脚本不会重复创建服务；停止脚本只会停止当前项目虚拟环境中运行
+的 MCP 服务及其子进程。
+
 ## 局域网或公网
 
 PowerShell 示例：
