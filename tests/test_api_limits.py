@@ -62,6 +62,27 @@ def test_crawler_manager_build_command():
     idx_comments = cmd2.index("--max_comments_count_singlenotes")
     assert cmd2[idx_comments + 1] == "5"
 
+    # 3. Media transcription implies media download and forwards model options
+    req3 = CrawlerStartRequest(
+        platform=PlatformEnum.DOUYIN,
+        login_type=LoginTypeEnum.QRCODE,
+        crawler_type=CrawlerTypeEnum.DETAIL,
+        specified_ids="123",
+        download_media=False,
+        transcribe_media=True,
+        whisper_model="tiny",
+        whisper_language="zh",
+    )
+    cmd3 = cm._build_command(req3)
+
+    def value_of(option):
+        return cmd3[cmd3.index(option) + 1]
+
+    assert value_of("--download_media") == "true"
+    assert value_of("--transcribe_media") == "true"
+    assert value_of("--whisper_model") == "tiny"
+    assert value_of("--whisper_language") == "zh"
+
 def test_api_start_crawler_with_limits():
     client = TestClient(app)
 

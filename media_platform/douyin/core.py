@@ -33,6 +33,11 @@ from playwright.async_api import (
 
 import config
 from base.base_crawler import AbstractCrawler
+from media_pipeline import (
+    MediaDownloader,
+    get_media_repository,
+    get_transcription_manager,
+)
 from proxy.proxy_ip_pool import IpInfoModel, create_ip_pool
 from store import douyin as douyin_store
 from tools import utils
@@ -406,7 +411,7 @@ class DouYinCrawler(AbstractCrawler):
         Args:
             aweme_item (Dict): 抖音作品详情
         """
-        if not config.ENABLE_GET_MEIDAS:
+        if not config.is_media_download_enabled():
             utils.logger.info(f"[DouYinCrawler.get_aweme_media] Crawling image mode is not enabled")
             return
         # List of note urls. If it is a short video type, an empty list will be returned.
@@ -426,7 +431,7 @@ class DouYinCrawler(AbstractCrawler):
         Args:
             aweme_item (Dict): 抖音作品详情
         """
-        if not config.ENABLE_GET_MEIDAS:
+        if not config.is_media_download_enabled():
             return
         aweme_id = aweme_item.get("aweme_id")
         # List of note urls. If it is a short video type, an empty list will be returned.
@@ -453,7 +458,7 @@ class DouYinCrawler(AbstractCrawler):
         Args:
             aweme_item (Dict): 抖音作品详情
         """
-        if not config.ENABLE_GET_MEIDAS:
+        if not config.is_media_download_enabled():
             return
         aweme_id = aweme_item.get("aweme_id")
 
@@ -462,9 +467,37 @@ class DouYinCrawler(AbstractCrawler):
 
         if not video_download_url:
             return
-        content = await self.dy_client.get_aweme_media(video_download_url)
+        repository = get_media_repository()
+        downloader = MediaDownloader(repository)
+        request_headers = {
+            key: value
+            for key, value in self.dy_client.headers.items()
+            if key.lower() in {"user-agent", "referer", "cookie"}
+        }
+        try:
+            result = await downloader.download(
+                platform="dy",
+                content_id=str(aweme_id),
+                source_url=video_download_url,
+                headers=request_headers,
+                proxy=self.dy_client.proxy,
+                run_id=config.MEDIA_RUN_ID,
+            )
+            utils.logger.info(
+                f"[DouYinCrawler.get_aweme_video] video saved to {result.local_path}"
+            )
+            if config.TRANSCRIBE_MEDIA and result.has_audio:
+                asset = await repository.get_asset(asset_id=result.asset_id)
+                if asset:
+                    job = await get_transcription_manager().enqueue_asset(
+                        asset,
+                        wait=True,
+                    )
+                    utils.logger.info(
+                        f"[DouYinCrawler.get_aweme_video] transcription {job.status}: {job.job_id}"
+                    )
+        except Exception as exc:
+            utils.logger.error(
+                f"[DouYinCrawler.get_aweme_video] download/transcription failed: {exc}"
+            )
         await asyncio.sleep(random.random())
-        if content is None:
-            return
-        extension_file_name = f"video.mp4"
-        await douyin_store.update_dy_aweme_video(aweme_id, content, extension_file_name)

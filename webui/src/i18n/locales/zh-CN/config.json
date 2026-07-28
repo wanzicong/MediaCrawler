@@ -56,7 +56,13 @@
     "commentExtraction": "评论抓取",
     "subComments": "子评论",
     "headlessMode": "无头模式",
-    "headlessModeHint": "无 GUI 运行浏览器"
+    "headlessModeHint": "无 GUI 运行浏览器",
+    "downloadMedia": "下载媒体",
+    "downloadMediaHint": "将图片和视频保存到本地",
+    "transcribeMedia": "视频转文字",
+    "transcribeMediaHint": "使用 faster-whisper 识别视频语音",
+    "whisperModel": "Whisper 模型",
+    "whisperLanguage": "识别语言"
   },
   "button": {
     "initiateScan": "开始爬虫",

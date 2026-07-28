@@ -104,8 +104,35 @@ CRAWLER_MAX_NOTES_COUNT = 15
 # Controlling the number of concurrent crawlers
 MAX_CONCURRENCY_NUM = 1
 
-# Whether to enable crawling media mode (including image or video resources), crawling media is not enabled by default
+# Whether to download media resources (images/videos). Disabled by default.
+DOWNLOAD_MEDIA = False
+
+# Backward-compatible alias for the historical misspelled setting.
+# Use is_media_download_enabled() in new code so either setting remains effective.
 ENABLE_GET_MEIDAS = False
+
+
+def is_media_download_enabled() -> bool:
+    return bool(DOWNLOAD_MEDIA or ENABLE_GET_MEIDAS)
+
+
+# Media pipeline
+MEDIA_RUN_ID = ""
+MEDIA_OUTPUT_DIR = "data/media"
+MEDIA_DOWNLOAD_TIMEOUT = 180
+MEDIA_DOWNLOAD_RETRIES = 3
+MEDIA_DOWNLOAD_CONCURRENCY = 2
+MEDIA_MAX_SIZE_MB = 500
+
+# Speech-to-text. Transcription implies media download.
+TRANSCRIBE_MEDIA = False
+WHISPER_MODEL = "small"
+WHISPER_DEVICE = "auto"  # auto | cpu | cuda
+WHISPER_COMPUTE_TYPE = "auto"  # auto | int8 | float16 | int8_float16
+WHISPER_LANGUAGE = "auto"
+WHISPER_VAD_FILTER = True
+WHISPER_WORD_TIMESTAMPS = False
+WHISPER_MODEL_DIR = ""
 
 # Whether to enable comment crawling mode. Comment crawling is enabled by default.
 ENABLE_GET_COMMENTS = True

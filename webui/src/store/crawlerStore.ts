@@ -59,6 +59,10 @@ const defaultConfig: CrawlerConfig = {
   save_option: 'json',
   cookies: '',
   headless: false,
+  download_media: false,
+  transcribe_media: false,
+  whisper_model: 'small',
+  whisper_language: 'auto',
 }
 
 export const useCrawlerStore = create<CrawlerState>((set, get) => ({

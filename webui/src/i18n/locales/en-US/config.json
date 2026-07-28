@@ -56,7 +56,13 @@
     "commentExtraction": "Comment Extraction",
     "subComments": "Sub-comments",
     "headlessMode": "HEADLESS_MODE",
-    "headlessModeHint": "Run browser without GUI"
+    "headlessModeHint": "Run browser without GUI",
+    "downloadMedia": "DOWNLOAD_MEDIA",
+    "downloadMediaHint": "Save images and videos locally",
+    "transcribeMedia": "TRANSCRIBE_VIDEO",
+    "transcribeMediaHint": "Recognize video speech with faster-whisper",
+    "whisperModel": "WHISPER_MODEL",
+    "whisperLanguage": "LANGUAGE"
   },
   "button": {
     "initiateScan": "INITIATE SCAN",

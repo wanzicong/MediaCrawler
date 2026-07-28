@@ -29,6 +29,11 @@ import aiofiles
 from base.base_crawler import AbstractStoreImage, AbstractStoreVideo
 from tools import utils
 import config
+from media_pipeline import (
+    get_media_repository,
+    get_transcription_manager,
+    register_local_media,
+)
 
 
 class BilibiliVideo(AbstractStoreVideo):
@@ -80,3 +85,20 @@ class BilibiliVideo(AbstractStoreVideo):
         async with aiofiles.open(save_file_name, 'wb') as f:
             await f.write(video_content)
             utils.logger.info(f"[BilibiliVideoImplement.save_video] save save_video {save_file_name} success ...")
+        try:
+            repository = get_media_repository()
+            result = await register_local_media(
+                repository,
+                platform="bili",
+                content_id=str(aid),
+                local_path=save_file_name,
+                run_id=config.MEDIA_RUN_ID,
+            )
+            if config.TRANSCRIBE_MEDIA and result.has_audio:
+                asset = await repository.get_asset(asset_id=result.asset_id)
+                if asset:
+                    await get_transcription_manager().enqueue_asset(asset, wait=True)
+        except Exception as exc:
+            utils.logger.warning(
+                f"[BilibiliVideoImplement.save_video] media registration failed: {exc}"
+            )

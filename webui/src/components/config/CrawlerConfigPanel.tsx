@@ -384,6 +384,67 @@ export function CrawlerConfigPanel() {
                 </p>
               </div>
             </div>
+
+            <div className="flex items-center gap-3 rounded-lg border border-cyber-border-subtle bg-cyber-bg-tertiary/30 p-2.5 hover:border-cyber-border-DEFAULT transition-colors">
+              <Checkbox
+                checked={config.download_media}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true
+                  updateConfig({
+                    download_media: enabled,
+                    transcribe_media: enabled ? config.transcribe_media : false,
+                  })
+                }}
+                disabled={isDisabled}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-mono text-cyber-text-primary">{t('field.downloadMedia')}</p>
+                <p className="text-[10px] text-cyber-text-muted leading-snug">
+                  {t('field.downloadMediaHint')}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border border-cyber-border-subtle bg-cyber-bg-tertiary/30 p-2.5 hover:border-cyber-border-DEFAULT transition-colors">
+              <Checkbox
+                checked={config.transcribe_media}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true
+                  updateConfig({
+                    transcribe_media: enabled,
+                    download_media: enabled ? true : config.download_media,
+                  })
+                }}
+                disabled={isDisabled}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-mono text-cyber-text-primary">{t('field.transcribeMedia')}</p>
+                <p className="text-[10px] text-cyber-text-muted leading-snug">
+                  {t('field.transcribeMediaHint')}
+                </p>
+              </div>
+            </div>
+
+            {config.transcribe_media ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={t('field.whisperModel')}>
+                  <Input
+                    value={config.whisper_model}
+                    onChange={(event) => updateConfig({ whisper_model: event.target.value })}
+                    disabled={isDisabled}
+                    className="h-9 text-xs"
+                  />
+                </Field>
+                <Field label={t('field.whisperLanguage')}>
+                  <Input
+                    value={config.whisper_language}
+                    onChange={(event) => updateConfig({ whisper_language: event.target.value })}
+                    disabled={isDisabled}
+                    className="h-9 text-xs"
+                  />
+                </Field>
+              </div>
+            ) : null}
           </div>
         </Section>
       </div>

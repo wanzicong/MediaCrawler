@@ -283,6 +283,73 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
                 rich_help_panel="Basic Configuration",
             ),
         ] = config.CRAWLER_MAX_NOTES_COUNT,
+        download_media: Annotated[
+            str,
+            typer.Option(
+                "--download_media",
+                help="Whether to download image/video resources",
+                rich_help_panel="Media Configuration",
+                show_default=True,
+            ),
+        ] = str(config.is_media_download_enabled()),
+        transcribe_media: Annotated[
+            str,
+            typer.Option(
+                "--transcribe_media",
+                help="Whether to transcribe downloaded videos with faster-whisper",
+                rich_help_panel="Media Configuration",
+                show_default=True,
+            ),
+        ] = str(config.TRANSCRIBE_MEDIA),
+        media_run_id: Annotated[
+            str,
+            typer.Option(
+                "--media_run_id",
+                help="Optional run identifier used to correlate downloaded media",
+                rich_help_panel="Media Configuration",
+            ),
+        ] = config.MEDIA_RUN_ID,
+        whisper_model: Annotated[
+            str,
+            typer.Option(
+                "--whisper_model",
+                help="faster-whisper model name or local model path",
+                rich_help_panel="Media Configuration",
+            ),
+        ] = config.WHISPER_MODEL,
+        whisper_device: Annotated[
+            str,
+            typer.Option(
+                "--whisper_device",
+                help="Transcription device: auto | cpu | cuda",
+                rich_help_panel="Media Configuration",
+            ),
+        ] = config.WHISPER_DEVICE,
+        whisper_compute_type: Annotated[
+            str,
+            typer.Option(
+                "--whisper_compute_type",
+                help="CTranslate2 compute type: auto | int8 | float16 | int8_float16",
+                rich_help_panel="Media Configuration",
+            ),
+        ] = config.WHISPER_COMPUTE_TYPE,
+        whisper_language: Annotated[
+            str,
+            typer.Option(
+                "--whisper_language",
+                help="Transcription language code, or auto",
+                rich_help_panel="Media Configuration",
+            ),
+        ] = config.WHISPER_LANGUAGE,
+        whisper_word_timestamps: Annotated[
+            str,
+            typer.Option(
+                "--whisper_word_timestamps",
+                help="Whether to generate word-level timestamps",
+                rich_help_panel="Media Configuration",
+                show_default=True,
+            ),
+        ] = str(config.WHISPER_WORD_TIMESTAMPS),
         max_concurrency_num: Annotated[
             int,
             typer.Option(
@@ -339,6 +406,9 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
         enable_sub_comment = _to_bool(get_sub_comment)
         enable_headless = _to_bool(headless)
         enable_ip_proxy_value = _to_bool(enable_ip_proxy)
+        enable_download_media = _to_bool(download_media)
+        enable_transcribe_media = _to_bool(transcribe_media)
+        enable_word_timestamps = _to_bool(whisper_word_timestamps)
         init_db_value = init_db.value if init_db else None
 
         # Parse specified_id and creator_id into lists
@@ -359,6 +429,15 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
         config.COOKIES = cookies
         config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = max_comments_count_singlenotes
         config.CRAWLER_MAX_NOTES_COUNT = crawler_max_notes_count
+        config.DOWNLOAD_MEDIA = enable_download_media or enable_transcribe_media
+        config.ENABLE_GET_MEIDAS = config.DOWNLOAD_MEDIA
+        config.TRANSCRIBE_MEDIA = enable_transcribe_media
+        config.MEDIA_RUN_ID = media_run_id
+        config.WHISPER_MODEL = whisper_model
+        config.WHISPER_DEVICE = whisper_device
+        config.WHISPER_COMPUTE_TYPE = whisper_compute_type
+        config.WHISPER_LANGUAGE = whisper_language
+        config.WHISPER_WORD_TIMESTAMPS = enable_word_timestamps
         config.MAX_CONCURRENCY_NUM = max_concurrency_num
         config.SAVE_DATA_PATH = save_data_path
         config.ENABLE_IP_PROXY = enable_ip_proxy_value
@@ -410,6 +489,9 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             get_comment=config.ENABLE_GET_COMMENTS,
             get_sub_comment=config.ENABLE_GET_SUB_COMMENTS,
             headless=config.HEADLESS,
+            download_media=config.DOWNLOAD_MEDIA,
+            transcribe_media=config.TRANSCRIBE_MEDIA,
+            media_run_id=config.MEDIA_RUN_ID,
             save_data_option=config.SAVE_DATA_OPTION,
             init_db=init_db_value,
             cookies=config.COOKIES,

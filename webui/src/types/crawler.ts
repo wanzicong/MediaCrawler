@@ -11,6 +11,10 @@ export interface CrawlerConfig {
   save_option: string
   cookies: string
   headless: boolean
+  download_media: boolean
+  transcribe_media: boolean
+  whisper_model: string
+  whisper_language: string
 }
 
 export interface CrawlerStatus {

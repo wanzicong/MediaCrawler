@@ -224,6 +224,10 @@ class CrawlerManager:
 
         cmd.extend(["--get_comment", "true" if config.enable_comments else "false"])
         cmd.extend(["--get_sub_comment", "true" if config.enable_sub_comments else "false"])
+        cmd.extend(["--download_media", "true" if config.download_media or config.transcribe_media else "false"])
+        cmd.extend(["--transcribe_media", "true" if config.transcribe_media else "false"])
+        cmd.extend(["--whisper_model", config.whisper_model])
+        cmd.extend(["--whisper_language", config.whisper_language])
 
         if config.max_notes_count is not None:
             cmd.extend(["--crawler_max_notes_count", str(config.max_notes_count)])
