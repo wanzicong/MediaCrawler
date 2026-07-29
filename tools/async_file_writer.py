@@ -21,11 +21,15 @@ import csv
 import json
 import os
 import pathlib
-from typing import Dict, List
+from datetime import datetime
+from typing import Dict
 import aiofiles
 import config
 from tools.utils import utils
 from tools.words import AsyncWordCloudGenerator
+
+_PROCESS_RUN_SUFFIX = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+
 
 class AsyncFileWriter:
     def __init__(self, platform: str, crawler_type: str):
@@ -40,7 +44,10 @@ class AsyncFileWriter:
         else:
             base_path = f"data/{self.platform}/{file_type}"
         pathlib.Path(base_path).mkdir(parents=True, exist_ok=True)
-        file_name = f"{self.crawler_type}_{item_type}_{utils.get_current_date()}.{file_type}"
+        date_suffix = utils.get_current_date()
+        if self.crawler_type in {"liked", "collected"}:
+            date_suffix = f"{_PROCESS_RUN_SUFFIX}_{os.getpid()}"
+        file_name = f"{self.crawler_type}_{item_type}_{date_suffix}.{file_type}"
         return f"{base_path}/{file_name}"
 
     async def write_to_csv(self, item: Dict, item_type: str):
@@ -114,7 +121,7 @@ class AsyncFileWriter:
                             comments_data = [comments_data]
 
             if not comments_data:
-                utils.logger.info(f"[AsyncFileWriter.generate_wordcloud_from_comments] No comments data found")
+                utils.logger.info("[AsyncFileWriter.generate_wordcloud_from_comments] No comments data found")
                 return
 
             # Filter comments data to only include 'content' field
@@ -128,7 +135,7 @@ class AsyncFileWriter:
                         filtered_data.append({'content': content_text})
 
             if not filtered_data:
-                utils.logger.info(f"[AsyncFileWriter.generate_wordcloud_from_comments] No valid comment content found")
+                utils.logger.info("[AsyncFileWriter.generate_wordcloud_from_comments] No valid comment content found")
                 return
 
             # Generate wordcloud

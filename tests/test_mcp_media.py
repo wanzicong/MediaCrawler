@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2025 relakkes@gmail.com
+#
+# This file is part of MediaCrawler project.
+# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/tests\test_mcp_media.py
+# GitHub: https://github.com/NanmiCoder
+# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+#
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+# 5. 不得用于任何非法或不当的用途。
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+
 import inspect
 import json
 from pathlib import Path
@@ -18,9 +36,7 @@ class _FakeWhisperEngine:
             language_probability=1.0,
             duration_seconds=1.0,
             full_text="MCP 转写成功",
-            segments=[
-                TranscriptSegment(start=0.0, end=1.0, text="MCP 转写成功")
-            ],
+            segments=[TranscriptSegment(start=0.0, end=1.0, text="MCP 转写成功")],
         )
 
 
@@ -28,6 +44,7 @@ def test_generated_crawl_tool_exposes_media_options() -> None:
     signature = inspect.signature(server._make_crawl_tool("dy", "抖音"))
     assert signature.parameters["download_media"].default is False
     assert signature.parameters["transcribe_media"].default is False
+    assert signature.parameters["transcription_backend"].default == "api"
     assert signature.parameters["transcription_model"].default == "small"
     assert signature.parameters["transcription_language"].default == "auto"
 
@@ -61,6 +78,7 @@ async def test_crawl_downloads_then_schedules_background_transcription(
         return CrawlResult(returncode=0, stdout="done", stderr="", success=True)
 
     monkeypatch.setattr(server, "run_crawler", fake_run_crawler)
+    monkeypatch.setattr(server, "MCP_RUNS_DIR", tmp_path / "mcp_runs")
     monkeypatch.setattr(server, "get_media_repository", lambda: repository)
     monkeypatch.setattr(server, "get_transcription_manager", lambda: manager)
     monkeypatch.setattr(
@@ -76,6 +94,7 @@ async def test_crawl_downloads_then_schedules_background_transcription(
             crawler_type="detail",
             specified_id="123",
             transcribe_media=True,
+            transcription_backend="local",
             transcription_model="tiny",
             transcription_language="zh",
         )
@@ -86,6 +105,7 @@ async def test_crawl_downloads_then_schedules_background_transcription(
     assert len(response["transcription_jobs"]) == 1
     assert captured["download_media"] is True
     assert captured["transcribe_media"] is False
+    assert captured["whisper_backend"] == "local"
     assert captured["timeout"] == 900
     assert str(captured["media_run_id"]).startswith("media_")
 
@@ -129,6 +149,7 @@ async def test_mcp_media_tools_list_status_and_read_transcript(
         await server.transcribe_downloaded_media(
             platform="dy",
             content_id="456",
+            backend="local",
             model="tiny",
             wait=True,
         )
@@ -143,9 +164,22 @@ async def test_mcp_media_tools_list_status_and_read_transcript(
             platform="dy",
             content_id="456",
             output_format="json",
+            task_id=task_id,
         )
     )
     assert transcript["success"] is True
     assert transcript["content"]["full_text"] == "MCP 转写成功"
     assert transcript["content"]["segments"][0]["text"] == "MCP 转写成功"
     assert scheduled["asset"]["id"] == asset.id
+
+    subtitle = json.loads(
+        await server.read_media_transcript(
+            platform="dy",
+            content_id="456",
+            output_format="srt",
+            task_id=task_id,
+        )
+    )
+    assert subtitle["success"] is True
+    assert "MCP 转写成功" in subtitle["content"]
+    assert "-->" in subtitle["content"]

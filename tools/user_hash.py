@@ -6,6 +6,11 @@
 # （用户 ID、IP 归属地、头像、主页链接、签名、性别等一律不采集；
 # 昵称保留但做中间脱敏）。本模块提供匿名化与脱敏工具。
 import hashlib
+import hmac
+import os
+import secrets
+from functools import lru_cache
+from pathlib import Path
 
 
 def anonymize_user_id(user_id) -> str:
@@ -17,6 +22,56 @@ def anonymize_user_id(user_id) -> str:
     if not s:
         return ""
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
+
+
+@lru_cache(maxsize=1)
+def _get_account_hash_key() -> bytes:
+    """Load a stable local key used only for authenticated account actions."""
+    env_key = os.getenv("MEDIACRAWLER_ACCOUNT_HASH_KEY", "").strip()
+    if env_key:
+        return env_key.encode("utf-8")
+
+    configured_path = os.getenv("MEDIACRAWLER_ACCOUNT_HASH_KEY_FILE", "").strip()
+    key_path = (
+        Path(configured_path)
+        if configured_path
+        else Path(__file__).resolve().parent.parent
+        / "browser_data"
+        / ".account_hash_key"
+    )
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        stored_key = key_path.read_text(encoding="ascii").strip()
+    except FileNotFoundError:
+        stored_key = secrets.token_hex(32)
+        try:
+            with key_path.open("x", encoding="ascii") as key_file:
+                key_file.write(stored_key)
+            try:
+                key_path.chmod(0o600)
+            except OSError:
+                pass
+        except FileExistsError:
+            stored_key = key_path.read_text(encoding="ascii").strip()
+
+    if not stored_key:
+        raise RuntimeError(f"Account hash key file is empty: {key_path}")
+    return stored_key.encode("ascii")
+
+
+def anonymize_account_id(account_id) -> str:
+    """Create a non-enumerable, stable HMAC for the signed-in account id."""
+    if account_id is None:
+        return ""
+    normalized_id = str(account_id).strip()
+    if not normalized_id:
+        return ""
+    return hmac.new(
+        _get_account_hash_key(),
+        normalized_id.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:32]
 
 
 def mask_nickname(name) -> str:

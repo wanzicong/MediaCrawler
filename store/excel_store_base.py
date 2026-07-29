@@ -84,14 +84,28 @@ class ExcelStoreBase(AbstractStore):
         Flush all Excel store instances and save to files
         Should be called at the end of crawler execution
         """
+        errors = []
         with cls._lock:
-            for key, instance in cls._instances.items():
-                try:
-                    instance.flush()
-                    utils.logger.info(f"[ExcelStoreBase] Flushed instance: {key}")
-                except Exception as e:
-                    utils.logger.error(f"[ExcelStoreBase] Error flushing {key}: {e}")
-            cls._instances.clear()
+            try:
+                for key, instance in cls._instances.items():
+                    try:
+                        instance.flush()
+                        utils.logger.info(
+                            f"[ExcelStoreBase] Flushed instance: {key}"
+                        )
+                    except Exception as exc:
+                        errors.append((key, exc))
+                        utils.logger.error(
+                            f"[ExcelStoreBase] Error flushing {key}: {exc}"
+                        )
+            finally:
+                cls._instances.clear()
+
+        if errors:
+            failed_keys = ", ".join(key for key, _ in errors)
+            raise RuntimeError(
+                f"Failed to flush Excel stores: {failed_keys}"
+            ) from errors[0][1]
 
     def __init__(self, platform: str, crawler_type: str = "search"):
         """
@@ -126,6 +140,7 @@ class ExcelStoreBase(AbstractStore):
         self.contents_sheet = self.workbook.create_sheet("Contents")
         self.comments_sheet = self.workbook.create_sheet("Comments")
         self.creators_sheet = self.workbook.create_sheet("Creators")
+        self.user_actions_sheet = None
 
         # Track if headers are written
         self.contents_headers_written = False
@@ -133,6 +148,7 @@ class ExcelStoreBase(AbstractStore):
         self.creators_headers_written = False
         self.contacts_headers_written = False
         self.dynamics_headers_written = False
+        self.user_actions_headers_written = False
 
         # Optional sheets for platforms that need them (e.g., Bilibili)
         self.contacts_sheet = None
@@ -296,6 +312,23 @@ class ExcelStoreBase(AbstractStore):
 
         utils.logger.info(f"[ExcelStoreBase] Stored creator to Excel: {creator.get('user_id', 'N/A')}")
 
+    async def store_user_action(self, action_item: Dict):
+        """Store an anonymized account/content action on a dedicated sheet."""
+        if self.user_actions_sheet is None:
+            self.user_actions_sheet = self.workbook.create_sheet("UserActions")
+
+        headers = list(action_item.keys())
+        if not self.user_actions_headers_written:
+            self._write_headers(self.user_actions_sheet, headers)
+            self.user_actions_headers_written = True
+
+        self._write_row(self.user_actions_sheet, action_item, headers)
+        utils.logger.info(
+            "[ExcelStoreBase] Stored user action: "
+            f"{action_item.get('action_type', 'N/A')}/"
+            f"{action_item.get('aweme_id', 'N/A')}"
+        )
+
     async def store_contact(self, contact_item: Dict):
         """
         Store contact data to Excel (for platforms like Bilibili)
@@ -357,6 +390,8 @@ class ExcelStoreBase(AbstractStore):
                 self._auto_adjust_column_width(self.contacts_sheet)
             if self.dynamics_sheet is not None:
                 self._auto_adjust_column_width(self.dynamics_sheet)
+            if self.user_actions_sheet is not None:
+                self._auto_adjust_column_width(self.user_actions_sheet)
 
             # Remove empty sheets (only header row)
             if self.contents_sheet.max_row == 1:
@@ -369,6 +404,11 @@ class ExcelStoreBase(AbstractStore):
                 self.workbook.remove(self.contacts_sheet)
             if self.dynamics_sheet is not None and self.dynamics_sheet.max_row == 1:
                 self.workbook.remove(self.dynamics_sheet)
+            if (
+                self.user_actions_sheet is not None
+                and self.user_actions_sheet.max_row == 1
+            ):
+                self.workbook.remove(self.user_actions_sheet)
 
             # Check if there are any sheets left
             if len(self.workbook.sheetnames) == 0:

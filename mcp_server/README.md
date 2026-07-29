@@ -22,6 +22,32 @@ uv run python -m mcp_server --transport streamable-http
 MCP 地址为 `http://127.0.0.1:8765/mcp`，健康检查地址为
 `http://127.0.0.1:8765/health`。
 
+## 抖音个人点赞与收藏
+
+`crawl_dy` 额外支持 `crawler_type=liked` 和
+`crawler_type=collected`，分别读取当前登录抖音账号的点赞作品和收藏作品。
+这两种模式不需要 `keywords`、`specified_id` 或 `creator_id`，默认不抓评论；
+如确有需要，可显式设置 `get_comment=true`。
+
+优先通过二维码登录并复用 `browser_data/` 中的本机登录态。虽然 MCP 会把
+`cookies` 参数通过子进程环境变量传递、不会放进命令行，但该参数仍可能进入
+MCP 客户端或模型调用日志，因此不建议直接传入组织账号 Cookie。
+
+每次爬取都会返回唯一 `crawl_run_id`，JSONL/JSON/CSV/Excel 产物保存在独立运行
+目录。稍后读取时推荐调用：
+
+```text
+read_crawl_data(crawl_run_id="crawl_...")
+```
+
+这样即使当前账号的列表为空，也不会回读同日旧任务的数据。`return_data=true`
+支持上述四种文件格式；SQLite、数据库、PostgreSQL 和 MongoDB 是共享后端，只
+支持写入及状态返回，不支持把共享历史记录当作本次数据内联返回。
+`liked/collected` 模式禁止省略 `crawl_run_id`。传入非空 `cookies` 时会自动使用
+Cookie 登录，并只替换抖音域 Cookie。`read_crawl_data` 的 `max_items` 上限为
+1000；`crawl_*` 单次 `max_notes_count` 上限也为 1000，并按页数扩展超时预算。
+损坏的 JSONL 会返回 `DATA_READ_ERROR`，同时保留可正常解析的记录。
+
 ### Windows 一键启动与停止
 
 项目根目录提供了可直接运行的脚本：

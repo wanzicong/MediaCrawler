@@ -17,6 +17,7 @@ export interface CrawlerConfig {
   specified_ids: string
   creator_ids: string
   start_page: number
+  max_notes_count: number
   enable_comments: boolean
   enable_sub_comments: boolean
   save_option: string
@@ -24,6 +25,7 @@ export interface CrawlerConfig {
   headless: boolean
   download_media: boolean
   transcribe_media: boolean
+  whisper_backend: 'api' | 'local'
   whisper_model: string
   whisper_language: string
 }
@@ -56,6 +58,8 @@ export interface FilePreviewResponse {
   data: Record<string, unknown>[]
   total: number
   columns?: string[]
+  sheet?: string
+  sheets?: string[]
 }
 
 export interface Platform {
@@ -80,8 +84,10 @@ export const crawlerApi = {
 export const dataApi = {
   getFiles: (platform?: string, fileType?: string) =>
     api.get<{ files: DataFile[] }>('/data/files', { params: { platform, file_type: fileType } }),
-  getFileContent: (path: string, limit = 100) =>
-    api.get<FilePreviewResponse>('/data/files/' + path, { params: { preview: true, limit } }),
+  getFileContent: (path: string, limit = 100, sheet?: string) =>
+    api.get<FilePreviewResponse>('/data/files/' + path, {
+      params: { preview: true, limit, sheet: sheet || undefined },
+    }),
   getStats: () => api.get('/data/stats'),
   getDownloadUrl: (path: string) => `/api/data/download/${path}`,
 }

@@ -54,6 +54,7 @@ const defaultConfig: CrawlerConfig = {
   specified_ids: '',
   creator_ids: '',
   start_page: 1,
+  max_notes_count: 15,
   enable_comments: true,
   enable_sub_comments: false,
   save_option: 'json',
@@ -61,6 +62,7 @@ const defaultConfig: CrawlerConfig = {
   headless: false,
   download_media: false,
   transcribe_media: false,
+  whisper_backend: 'api',
   whisper_model: 'small',
   whisper_language: 'auto',
 }

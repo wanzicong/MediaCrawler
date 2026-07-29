@@ -145,6 +145,40 @@ export function CrawlerConfigPanel() {
   const isDisabled = status === 'running' || status === 'stopping'
   const isRunning = status === 'running'
   const isBusy = isStarting || isStopping || status === 'stopping'
+  const isDouyinPersonalMode =
+    config.platform === 'dy' &&
+    (config.crawler_type === 'liked' || config.crawler_type === 'collected')
+  const visibleCrawlerTypes = options?.crawler_types.filter(
+    (type) =>
+      config.platform === 'dy' ||
+      (type.value !== 'liked' && type.value !== 'collected'),
+  )
+
+  const handlePlatformChange = (platform: string) => {
+    const leavesDouyinPersonalMode =
+      platform !== 'dy' &&
+      (config.crawler_type === 'liked' || config.crawler_type === 'collected')
+    updateConfig({
+      platform,
+      ...(leavesDouyinPersonalMode ? { crawler_type: 'search' } : {}),
+    })
+  }
+
+  const handleCrawlerTypeChange = (crawlerType: string) => {
+    const entersDouyinPersonalMode =
+      config.platform === 'dy' &&
+      (crawlerType === 'liked' || crawlerType === 'collected')
+    updateConfig({
+      crawler_type: crawlerType,
+      ...(entersDouyinPersonalMode
+        ? {
+            start_page: 1,
+            enable_comments: false,
+            enable_sub_comments: false,
+          }
+        : {}),
+    })
+  }
 
   const handleStart = () => {
     startCrawler(config)
@@ -167,7 +201,7 @@ export function CrawlerConfigPanel() {
           <Field label={t('field.platform')}>
             <Select
               value={config.platform}
-              onValueChange={(value) => updateConfig({ platform: value })}
+              onValueChange={handlePlatformChange}
               disabled={isDisabled}
             >
               <SelectTrigger className="h-9 text-xs">
@@ -187,14 +221,14 @@ export function CrawlerConfigPanel() {
             <Field label={t('field.crawlType')}>
               <Select
                 value={config.crawler_type}
-                onValueChange={(value) => updateConfig({ crawler_type: value })}
+                onValueChange={handleCrawlerTypeChange}
                 disabled={isDisabled}
               >
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder={t('field.crawlTypePlaceholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {options?.crawler_types.map((type) => (
+                  {visibleCrawlerTypes?.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
                     </SelectItem>
@@ -203,19 +237,49 @@ export function CrawlerConfigPanel() {
               </Select>
             </Field>
 
-            <Field label={t('field.startPage')}>
-              <Input
-                type="number"
-                min={1}
-                value={config.start_page}
-                onChange={(e) => updateConfig({ start_page: parseInt(e.target.value) || 1 })}
-                disabled={isDisabled}
-                className="h-9 text-xs"
-              />
-            </Field>
+            {!isDouyinPersonalMode && (
+              <Field label={t('field.startPage')}>
+                <Input
+                  type="number"
+                  min={1}
+                  value={config.start_page}
+                  onChange={(e) => updateConfig({ start_page: parseInt(e.target.value) || 1 })}
+                  disabled={isDisabled}
+                  className="h-9 text-xs"
+                />
+              </Field>
+            )}
           </div>
 
+          <Field
+            label={t('field.maxNotesCount')}
+            hint={t('field.maxNotesCountHint')}
+          >
+            <Input
+              type="number"
+              min={1}
+              max={10000}
+              value={config.max_notes_count}
+              onChange={(e) =>
+                updateConfig({
+                  max_notes_count: Math.max(
+                    1,
+                    Math.min(10000, parseInt(e.target.value, 10) || 1),
+                  ),
+                })
+              }
+              disabled={isDisabled}
+              className="h-9 text-xs"
+            />
+          </Field>
+
           {/* 根据爬虫类型显示不同的输入框 */}
+          {isDouyinPersonalMode && (
+            <div className="rounded-lg border border-cyber-neon-cyan/30 bg-cyber-neon-cyan/5 p-3 text-[11px] leading-snug text-cyber-neon-cyan font-mono">
+              {t(`warning.douyinPersonalMode.${config.crawler_type}`)}
+            </div>
+          )}
+
           {config.crawler_type === 'search' && (
             <Field label={t('field.keywords')} hint={t('field.keywordsHint')}>
               <KeywordInput
@@ -283,7 +347,12 @@ export function CrawlerConfigPanel() {
           <Field label={t('field.loginMethod')}>
             <Select
               value={config.login_type}
-              onValueChange={(value) => updateConfig({ login_type: value })}
+              onValueChange={(value) =>
+                updateConfig({
+                  login_type: value,
+                  ...(value === 'cookie' ? {} : { cookies: '' }),
+                })
+              }
               disabled={isDisabled}
             >
               <SelectTrigger className="h-9 text-xs">
@@ -427,6 +496,26 @@ export function CrawlerConfigPanel() {
 
             {config.transcribe_media ? (
               <div className="grid grid-cols-2 gap-3">
+                <Field
+                  label={t('field.whisperBackend')}
+                  hint={t('field.whisperBackendHint')}
+                >
+                  <Select
+                    value={config.whisper_backend}
+                    onValueChange={(value) =>
+                      updateConfig({ whisper_backend: value as 'api' | 'local' })
+                    }
+                    disabled={isDisabled}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="api">{t('field.whisperBackendApi')}</SelectItem>
+                      <SelectItem value="local">{t('field.whisperBackendLocal')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
                 <Field label={t('field.whisperModel')}>
                   <Input
                     value={config.whisper_model}

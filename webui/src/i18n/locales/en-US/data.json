@@ -20,6 +20,7 @@
   "preview": {
     "title": "Data Preview",
     "records": "{{count}} RECORDS",
+    "sheet": "SHEET",
     "download": "DOWNLOAD",
     "loading": "[LOADING] Decoding payload...",
     "error": "[ERROR] Failed to decode payload",

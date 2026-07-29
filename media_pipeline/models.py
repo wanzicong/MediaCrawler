@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2025 relakkes@gmail.com
+#
+# This file is part of MediaCrawler project.
+# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/media_pipeline\models.py
+# GitHub: https://github.com/NanmiCoder
+# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+#
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+# 5. 不得用于任何非法或不当的用途。
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -47,6 +65,9 @@ class TranscriptResult:
     duration_seconds: float
     full_text: str
     segments: list[TranscriptSegment]
+    backend: str = ""
+    resolved_model: str = ""
+    fallback_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,6 +76,9 @@ class TranscriptResult:
             "duration_seconds": self.duration_seconds,
             "full_text": self.full_text,
             "segments": [segment.to_dict() for segment in self.segments],
+            "backend": self.backend,
+            "resolved_model": self.resolved_model,
+            "fallback_reason": self.fallback_reason,
         }
 
 
@@ -68,6 +92,10 @@ class TranscriptionJob:
     compute_type: str
     language: str
     options_hash: str
+    requested_backend: str
+    actual_backend: str
+    resolved_model: str
+    fallback_reason: str
     full_text: str
     segments_json: str
     transcript_path: str

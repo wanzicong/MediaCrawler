@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2025 relakkes@gmail.com
+#
+# This file is part of MediaCrawler project.
+# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/tests\test_media_pipeline.py
+# GitHub: https://github.com/NanmiCoder
+# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+#
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+# 5. 不得用于任何非法或不当的用途。
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+
 import json
 from pathlib import Path
 
@@ -161,16 +179,17 @@ async def test_transcription_job_persists_text_json_and_subtitles(
     assert job.status == "completed"
     assert job.full_text == "第一句\n第二句"
     assert json.loads(job.segments_json)[1]["text"] == "第二句"
-    output_dir = media_file.parent
+    output_dir = Path(job.transcript_path).parent
+    assert output_dir == media_file.parent / "transcripts" / job.job_id
     assert (output_dir / "transcript.txt").read_text(encoding="utf-8") == job.full_text
     assert '"language": "zh"' in (output_dir / "transcript.json").read_text(
         encoding="utf-8"
     )
-    assert "00:00:00,000 --> 00:00:01,200" in (
-        output_dir / "transcript.srt"
-    ).read_text(encoding="utf-8")
-    assert (output_dir / "transcript.vtt").read_text(encoding="utf-8").startswith(
-        "WEBVTT"
+    assert "00:00:00,000 --> 00:00:01,200" in (output_dir / "transcript.srt").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        (output_dir / "transcript.vtt").read_text(encoding="utf-8").startswith("WEBVTT")
     )
 
     duplicate = await manager.enqueue_asset(asset, options, wait=False)

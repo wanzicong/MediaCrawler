@@ -17,6 +17,48 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
+import math
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} 必须是 true/false、1/0、yes/no 或 on/off")
+
+
+def _env_positive_float(name: str, default: float) -> float:
+    raw_value = os.getenv(name, str(default))
+    try:
+        value = float(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} 必须是数字") from exc
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} 必须是大于 0 的有限数字")
+    return value
+
+
+def _env_positive_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name, str(default))
+    try:
+        value = int(raw_value)
+    except ValueError as exc:
+        raise ValueError(f"{name} 必须是整数") from exc
+    if value <= 0:
+        raise ValueError(f"{name} 必须大于 0")
+    return value
+
+
 # Basic configuration
 PLATFORM = "xhs"  # Platform, xhs | dy | ks | bili | wb | tieba | zhihu
 
@@ -24,12 +66,12 @@ PLATFORM = "xhs"  # Platform, xhs | dy | ks | bili | wb | tieba | zhihu
 # 开启后 API 走 webapi.rednote.com，cookie 域使用 .rednote.com
 XHS_INTERNATIONAL = False
 
-KEYWORDS = "编程副业,编程兼职"  # Keyword search configuration, separated by English commas
+KEYWORDS = (
+    "编程副业,编程兼职"  # Keyword search configuration, separated by English commas
+)
 LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
-CRAWLER_TYPE = (
-    "search"  # Crawling type, search (keyword search) | detail (post details) | creator (creator homepage data)
-)
+CRAWLER_TYPE = "search"  # search | detail | creator | liked (Douyin) | collected (Douyin)
 # Whether to enable IP proxy
 ENABLE_IP_PROXY = False
 
@@ -127,6 +169,9 @@ MEDIA_MAX_SIZE_MB = 500
 
 # Speech-to-text. Transcription implies media download.
 TRANSCRIBE_MEDIA = False
+WHISPER_BACKEND = os.getenv("WHISPER_BACKEND", "api").strip().lower()
+if WHISPER_BACKEND not in {"api", "local"}:
+    raise ValueError("WHISPER_BACKEND 必须是 api 或 local")
 WHISPER_MODEL = "small"
 WHISPER_DEVICE = "auto"  # auto | cpu | cuda
 WHISPER_COMPUTE_TYPE = "auto"  # auto | int8 | float16 | int8_float16
@@ -134,6 +179,26 @@ WHISPER_LANGUAGE = "auto"
 WHISPER_VAD_FILTER = True
 WHISPER_WORD_TIMESTAMPS = False
 WHISPER_MODEL_DIR = ""
+WHISPER_API_BASE_URL = os.getenv(
+    "WHISPER_API_BASE_URL",
+    "http://127.0.0.1:9000",
+).strip()
+WHISPER_API_KEY = os.getenv("WHISPER_API_KEY", "")
+WHISPER_API_MODEL = os.getenv("WHISPER_API_MODEL", "whisper-1").strip()
+if not WHISPER_API_MODEL:
+    raise ValueError("WHISPER_API_MODEL 不能为空")
+WHISPER_API_TIMEOUT = _env_positive_float("WHISPER_API_TIMEOUT", 1800)
+WHISPER_API_FALLBACK_TO_LOCAL = _env_bool(
+    "WHISPER_API_FALLBACK_TO_LOCAL",
+    True,
+)
+WHISPER_API_TRUST_ENV = _env_bool("WHISPER_API_TRUST_ENV", False)
+WHISPER_API_MODEL_VERSION = os.getenv("WHISPER_API_MODEL_VERSION", "").strip()
+WHISPER_API_DEPLOYMENT_FINGERPRINT = os.getenv(
+    "WHISPER_API_DEPLOYMENT_FINGERPRINT",
+    "",
+).strip()
+WHISPER_API_CONCURRENCY = _env_positive_int("WHISPER_API_CONCURRENCY", 1)
 
 # Whether to enable comment crawling mode. Comment crawling is enabled by default.
 ENABLE_GET_COMMENTS = True

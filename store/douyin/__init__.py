@@ -24,8 +24,8 @@
 from typing import List
 
 import config
-from var import source_keyword_var
-from tools.user_hash import anonymize_user_id, mask_nickname
+from var import crawler_type_var, source_keyword_var
+from tools.user_hash import anonymize_account_id, anonymize_user_id, mask_nickname
 
 from ._store_impl import *
 from .douyin_store_media import *
@@ -49,6 +49,37 @@ class DouyinStoreFactory:
         if not store_class:
             raise ValueError("[DouyinStoreFactory.create_store] Invalid save option only supported csv or db or json or sqlite or mongodb or excel ...")
         return store_class()
+
+
+async def update_douyin_user_action(
+    account_id: str,
+    aweme_id: str,
+    action_type: str,
+):
+    """Persist an anonymized relationship between the login and an aweme."""
+    if action_type not in {"liked", "collected"}:
+        raise ValueError(
+            "[update_douyin_user_action] "
+            f"Unsupported action type: {action_type}"
+        )
+
+    account_hash = anonymize_account_id(account_id)
+    if not account_hash or not aweme_id:
+        utils.logger.warning(
+            "[update_douyin_user_action] Skip incomplete action: "
+            f"account={bool(account_hash)}, aweme={bool(aweme_id)}"
+        )
+        return
+
+    current_ts = utils.get_current_timestamp()
+    await DouyinStoreFactory.create_store().store_user_action(
+        action_item={
+            "account_hash": account_hash,
+            "aweme_id": str(aweme_id),
+            "action_type": action_type,
+            "observed_ts": current_ts,
+        }
+    )
 
 
 def _extract_note_image_list(aweme_detail: Dict) -> List[str]:
@@ -179,7 +210,17 @@ async def update_douyin_aweme(aweme_item: Dict):
         "note_download_url": ",".join(_extract_note_image_list(aweme_item)),
         "source_keyword": source_keyword_var.get(),
     }
-    utils.logger.info(f"[store.douyin.update_douyin_aweme] douyin aweme id:{aweme_id}, title:{save_content_item.get('title')}")
+    if crawler_type_var.get() in {"liked", "collected"}:
+        utils.logger.info(
+            "[store.douyin.update_douyin_aweme] "
+            f"stored personal-feed aweme id:{aweme_id}"
+        )
+    else:
+        utils.logger.info(
+            "[store.douyin.update_douyin_aweme] "
+            f"douyin aweme id:{aweme_id}, "
+            f"title:{save_content_item.get('title')}"
+        )
     await DouyinStoreFactory.create_store().store_content(content_item=save_content_item)
 
 
@@ -211,7 +252,17 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
         "parent_comment_id": parent_comment_id,
         "pictures": ",".join(_extract_comment_image_list(comment_item)),
     }
-    utils.logger.info(f"[store.douyin.update_dy_aweme_comment] douyin aweme comment: {comment_id}, content: {save_comment_item.get('content')}")
+    if crawler_type_var.get() in {"liked", "collected"}:
+        utils.logger.info(
+            "[store.douyin.update_dy_aweme_comment] "
+            f"stored personal-feed comment:{comment_id}"
+        )
+    else:
+        utils.logger.info(
+            "[store.douyin.update_dy_aweme_comment] "
+            f"douyin aweme comment:{comment_id}, "
+            f"content:{save_comment_item.get('content')}"
+        )
 
     await DouyinStoreFactory.create_store().store_comment(comment_item=save_comment_item)
 

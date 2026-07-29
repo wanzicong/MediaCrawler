@@ -19,6 +19,7 @@
 
 import sys
 import io
+import os
 
 # Force UTF-8 encoding for stdout/stderr to prevent encoding errors
 # when outputting Chinese characters in non-UTF-8 terminals
@@ -29,7 +30,6 @@ if sys.stderr and hasattr(sys.stderr, 'buffer'):
     if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-import asyncio
 from typing import Optional, Type
 
 import cmd_arg
@@ -44,6 +44,7 @@ from media_platform.weibo import WeiboCrawler
 from media_platform.xhs import XiaoHongShuCrawler
 from media_platform.zhihu import ZhihuCrawler
 from tools.async_file_writer import AsyncFileWriter
+from tools.crawler_process_lock import CrawlerProcessLock
 from var import crawler_type_var
 
 
@@ -68,6 +69,7 @@ class CrawlerFactory:
 
 
 crawler: Optional[AbstractCrawler] = None
+crawler_process_lock = CrawlerProcessLock()
 
 
 def _flush_excel_if_needed() -> None:
@@ -81,6 +83,7 @@ def _flush_excel_if_needed() -> None:
         print("[Main] Excel files saved successfully")
     except Exception as e:
         print(f"[Main] Error flushing Excel data: {e}")
+        raise
 
 
 async def _generate_wordcloud_if_needed() -> None:
@@ -105,6 +108,14 @@ async def main() -> None:
         await db.init_db(args.init_db)
         print(f"Database {args.init_db} initialized successfully.")
         return
+
+    try:
+        lock_timeout = float(
+            os.getenv("MEDIACRAWLER_PROCESS_LOCK_TIMEOUT", "3")
+        )
+    except ValueError:
+        lock_timeout = 3.0
+    crawler_process_lock.acquire(timeout=lock_timeout)
 
     # 数据库保存模式下自动建表，避免首次运行时出现 no such table 错误
     if config.SAVE_DATA_OPTION in ("sqlite", "mysql", "db", "postgres"):
@@ -139,8 +150,11 @@ async def async_cleanup() -> None:
                 if "closed" not in error_msg and "disconnected" not in error_msg:
                     print(f"[Main] Error closing browser context: {e}")
 
-    if config.SAVE_DATA_OPTION in ("db", "sqlite"):
-        await db.close()
+    try:
+        if config.SAVE_DATA_OPTION in ("db", "sqlite"):
+            await db.close()
+    finally:
+        crawler_process_lock.release()
 
 if __name__ == "__main__":
     from tools.app_runner import run

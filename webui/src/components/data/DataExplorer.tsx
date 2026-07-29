@@ -9,10 +9,12 @@ import { Badge } from '@/components/ui/badge'
 
 // 从文件名提取类别
 function extractCategory(filename: string): string {
-  // 文件名格式: search_comments_xxx, search_creators_xxx, search_videos_xxx 等
-  const match = filename.match(/^(search_\w+?)_/)
+  // 文件名格式: {mode}_{item_type}_{date}.{extension}
+  const match = filename.match(
+    /^(search|detail|creator|liked|collected)_(user_actions|comments|creators|videos|contents|notes)(?:_|\.|$)/,
+  )
   if (match) {
-    return match[1]
+    return `${match[1]}_${match[2]}`
   }
   // 其他格式尝试提取前缀
   const parts = filename.split('_')
@@ -30,6 +32,12 @@ function getCategoryLabel(category: string): string {
     'search_videos': 'Videos',
     'search_contents': 'Contents',
     'search_notes': 'Notes',
+    'liked_contents': 'Liked Contents',
+    'liked_comments': 'Liked Comments',
+    'liked_user_actions': 'Liked Actions',
+    'collected_contents': 'Collected Contents',
+    'collected_comments': 'Collected Comments',
+    'collected_user_actions': 'Collected Actions',
     'other': 'Other',
   }
   return labels[category] || category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())

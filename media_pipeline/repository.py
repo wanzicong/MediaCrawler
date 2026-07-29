@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2025 relakkes@gmail.com
+#
+# This file is part of MediaCrawler project.
+# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/media_pipeline\repository.py
+# GitHub: https://github.com/NanmiCoder
+# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+#
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+# 5. 不得用于任何非法或不当的用途。
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+
 from __future__ import annotations
 
 import asyncio
@@ -64,6 +82,10 @@ class MediaRepository:
                         compute_type TEXT NOT NULL,
                         language TEXT NOT NULL DEFAULT 'auto',
                         options_hash TEXT NOT NULL,
+                        requested_backend TEXT NOT NULL DEFAULT 'local',
+                        actual_backend TEXT NOT NULL DEFAULT '',
+                        resolved_model TEXT NOT NULL DEFAULT '',
+                        fallback_reason TEXT NOT NULL DEFAULT '',
                         full_text TEXT NOT NULL DEFAULT '',
                         segments_json TEXT NOT NULL DEFAULT '[]',
                         transcript_path TEXT NOT NULL DEFAULT '',
@@ -77,6 +99,43 @@ class MediaRepository:
 
                     CREATE INDEX IF NOT EXISTS idx_transcription_jobs_asset
                     ON transcription_jobs(asset_id, created_at DESC);
+                    """
+                )
+                # Different crawler/MCP processes can initialize the same legacy
+                # database at the same time.  Serialize the schema inspection and
+                # ALTER statements so every waiter re-reads the columns after the
+                # process holding the write transaction commits.
+                await db.execute("BEGIN IMMEDIATE")
+                cursor = await db.execute("PRAGMA table_info(transcription_jobs)")
+                columns = {row[1] for row in await cursor.fetchall()}
+                migrations = {
+                    "requested_backend": (
+                        "ALTER TABLE transcription_jobs ADD COLUMN "
+                        "requested_backend TEXT NOT NULL DEFAULT 'local'"
+                    ),
+                    "actual_backend": (
+                        "ALTER TABLE transcription_jobs ADD COLUMN "
+                        "actual_backend TEXT NOT NULL DEFAULT ''"
+                    ),
+                    "resolved_model": (
+                        "ALTER TABLE transcription_jobs ADD COLUMN "
+                        "resolved_model TEXT NOT NULL DEFAULT ''"
+                    ),
+                    "fallback_reason": (
+                        "ALTER TABLE transcription_jobs ADD COLUMN "
+                        "fallback_reason TEXT NOT NULL DEFAULT ''"
+                    ),
+                }
+                for column, statement in migrations.items():
+                    if column not in columns:
+                        await db.execute(statement)
+                await db.execute(
+                    """
+                    UPDATE transcription_jobs
+                    SET requested_backend = 'local',
+                        actual_backend = 'local',
+                        resolved_model = model
+                    WHERE status = 'completed' AND actual_backend = ''
                     """
                 )
                 await db.commit()
@@ -114,6 +173,10 @@ class MediaRepository:
             compute_type=row["compute_type"],
             language=row["language"],
             options_hash=row["options_hash"],
+            requested_backend=row["requested_backend"],
+            actual_backend=row["actual_backend"],
+            resolved_model=row["resolved_model"],
+            fallback_reason=row["fallback_reason"],
             full_text=row["full_text"],
             segments_json=row["segments_json"],
             transcript_path=row["transcript_path"],
@@ -264,6 +327,7 @@ class MediaRepository:
         compute_type: str,
         language: str,
         options_hash: str,
+        requested_backend: str,
     ) -> TranscriptionJob:
         await self.initialize()
         existing = await self.find_completed_job(asset_id, options_hash)
@@ -276,8 +340,8 @@ class MediaRepository:
                 """
                 INSERT INTO transcription_jobs (
                     job_id, asset_id, status, model, device, compute_type,
-                    language, options_hash, created_at
-                ) VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+                    language, options_hash, requested_backend, created_at
+                ) VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     job_id,
@@ -287,6 +351,7 @@ class MediaRepository:
                     compute_type,
                     language,
                     options_hash,
+                    requested_backend,
                     now,
                 ),
             )
@@ -308,7 +373,10 @@ class MediaRepository:
                 """
                 SELECT * FROM transcription_jobs
                 WHERE asset_id = ? AND options_hash = ? AND status = 'completed'
-                ORDER BY created_at DESC LIMIT 1
+                  AND NOT (
+                    requested_backend = 'api' AND actual_backend = 'local'
+                  )
+                ORDER BY created_at DESC, rowid DESC LIMIT 1
                 """,
                 (asset_id, options_hash),
             )
@@ -326,6 +394,26 @@ class MediaRepository:
             row = await cursor.fetchone()
         return self._job_from_row(row) if row else None
 
+    async def find_active_job(
+        self,
+        asset_id: int,
+        options_hash: str,
+    ) -> TranscriptionJob | None:
+        await self.initialize()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """
+                SELECT * FROM transcription_jobs
+                WHERE asset_id = ? AND options_hash = ?
+                  AND status IN ('pending', 'running')
+                ORDER BY created_at DESC, rowid DESC LIMIT 1
+                """,
+                (asset_id, options_hash),
+            )
+            row = await cursor.fetchone()
+        return self._job_from_row(row) if row else None
+
     async def get_latest_job_for_asset(self, asset_id: int) -> TranscriptionJob | None:
         await self.initialize()
         async with aiosqlite.connect(self.db_path) as db:
@@ -334,7 +422,7 @@ class MediaRepository:
                 """
                 SELECT * FROM transcription_jobs
                 WHERE asset_id = ?
-                ORDER BY created_at DESC LIMIT 1
+                ORDER BY created_at DESC, rowid DESC LIMIT 1
                 """,
                 (asset_id,),
             )
@@ -349,6 +437,9 @@ class MediaRepository:
             "segments_json",
             "transcript_path",
             "subtitle_path",
+            "actual_backend",
+            "resolved_model",
+            "fallback_reason",
             "error_message",
             "started_at",
             "finished_at",

@@ -74,6 +74,7 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         params: Optional[Dict] = None,
         headers: Optional[Dict] = None,
         request_method="GET",
+        post_data: Optional[Dict] = None,
     ):
 
         if not params:
@@ -112,12 +113,18 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         query_string = urllib.parse.urlencode(params)
 
         # 20240927 a-bogus update (JS version)
-        post_data = {}
+        sign_post_data = {}
         if request_method == "POST":
-            post_data = params
+            sign_post_data = post_data if post_data is not None else params
 
         if "/v1/web/general/search" not in uri:
-            a_bogus = await get_a_bogus(uri, query_string, post_data, headers["User-Agent"], self.playwright_page)
+            a_bogus = await get_a_bogus(
+                uri,
+                query_string,
+                sign_post_data,
+                headers["User-Agent"],
+                self.playwright_page,
+            )
             params["a_bogus"] = a_bogus
 
     async def request(self, method, url, **kwargs):
@@ -126,13 +133,31 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
 
         async with make_async_client(proxy=self.proxy) as client:
             response = await client.request(method, url, timeout=self.timeout, **kwargs)
+        response_text = response.text
+        status_code = getattr(response, "status_code", "unknown")
+        if response_text == "" or response_text == "blocked":
+            body_state = "empty" if response_text == "" else "blocked"
+            utils.logger.error(
+                "Douyin request rejected: status=%s, body_state=%s",
+                status_code,
+                body_state,
+            )
+            raise DataFetchError(
+                f"Douyin request rejected: status={status_code}, "
+                f"body_state={body_state}"
+            )
         try:
-            if response.text == "" or response.text == "blocked":
-                utils.logger.error(f"request params incrr, response.text: {response.text}")
-                raise Exception("account blocked")
             return response.json()
-        except Exception as e:
-            raise DataFetchError(f"{e}, {response.text}")
+        except Exception as exc:
+            headers = getattr(response, "headers", {})
+            content_type = str(headers.get("content-type", "unknown"))
+            body_length = len(response_text.encode("utf-8", errors="replace"))
+            raise DataFetchError(
+                "Douyin response JSON decode failed: "
+                f"error={type(exc).__name__}, status={status_code}, "
+                f"content_type={content_type[:80]}, "
+                f"body_length={body_length}"
+            ) from exc
 
     async def get(self, uri: str, params: Optional[Dict] = None, headers: Optional[Dict] = None):
         """
@@ -142,21 +167,91 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
         headers = headers or self.headers
         return await self.request(method="GET", url=f"{self._host}{uri}", params=params, headers=headers)
 
-    async def post(self, uri: str, data: dict, headers: Optional[Dict] = None):
-        await self.__process_req_params(uri, data, headers)
-        headers = headers or self.headers
-        return await self.request(method="POST", url=f"{self._host}{uri}", data=data, headers=headers)
-
-    async def pong(self, browser_context: BrowserContext) -> bool:
-        local_storage = await self.playwright_page.evaluate("() => window.localStorage")
-        if local_storage.get("HasUserLogin", "") == "1":
-            return True
-
-        _, cookie_dict = await utils.convert_browser_context_cookies(
-            browser_context,
-            urls=self.cookie_urls,
+    async def post(
+        self,
+        uri: str,
+        data: dict,
+        headers: Optional[Dict] = None,
+        params: Optional[Dict] = None,
+    ):
+        signing_params = params if params is not None else data
+        await self.__process_req_params(
+            uri,
+            signing_params,
+            headers,
+            request_method="POST",
+            post_data=data,
         )
-        return cookie_dict.get("LOGIN_STATUS") == "1"
+        headers = headers or self.headers
+        request_kwargs = {
+            "method": "POST",
+            "url": f"{self._host}{uri}",
+            "data": data,
+            "headers": headers,
+        }
+        if params is not None:
+            request_kwargs["params"] = params
+        return await self.request(**request_kwargs)
+
+    async def pong(
+        self,
+        browser_context: BrowserContext,
+        require_self_profile: bool = False,
+    ) -> bool:
+        if not require_self_profile:
+            try:
+                local_storage = await self.playwright_page.evaluate(
+                    "() => window.localStorage"
+                )
+            except Exception:
+                local_storage = {}
+            if (
+                isinstance(local_storage, dict)
+                and local_storage.get("HasUserLogin", "") == "1"
+            ):
+                return True
+
+            try:
+                _, cookie_dict = await utils.convert_browser_context_cookies(
+                    browser_context,
+                    urls=self.cookie_urls,
+                )
+            except Exception:
+                cookie_dict = {}
+            if cookie_dict.get("LOGIN_STATUS") == "1":
+                return True
+
+        # Douyin does not always persist either legacy login marker in a saved
+        # browser profile. A successful self-profile response is a stronger,
+        # read-only verification of the restored session.
+        try:
+            profile_res = await self.get_self_profile()
+        except Exception as exc:
+            utils.logger.info(
+                "[DouYinClient.pong] self-profile session check failed: "
+                f"{type(exc).__name__}"
+            )
+            return False
+
+        if (
+            not isinstance(profile_res, dict)
+            or "status_code" not in profile_res
+            or profile_res.get("status_code") not in (0, "0")
+        ):
+            return False
+        data = profile_res.get("data")
+        profile_data = (
+            profile_res.get("user")
+            or profile_res.get("user_info")
+            or (data.get("user") if isinstance(data, dict) else None)
+            or (data.get("user_info") if isinstance(data, dict) else None)
+            or data
+        )
+        return isinstance(profile_data, dict) and bool(
+            profile_data.get("uid")
+            or profile_data.get("sec_uid")
+            or profile_data.get("sec_user_id")
+        )
 
     async def update_cookies(self, browser_context: BrowserContext, urls: Optional[list[str]] = None):
         cookie_str, cookie_dict = await utils.convert_browser_context_cookies(
@@ -317,6 +412,52 @@ class DouYinClient(AbstractApiClient, ProxyRefreshMixin):
             "personal_center_strategy": 1,
         }
         return await self.get(uri, params)
+
+    async def get_self_profile(self) -> Dict:
+        """Get the profile associated with the current authenticated session."""
+        uri = "/aweme/v1/web/user/profile/self/"
+        headers = copy.copy(self.headers)
+        headers["Referer"] = "https://www.douyin.com/user/self"
+        return await self.get(uri, {"aid": "6383"}, headers=headers)
+
+    async def get_self_liked_awemes(
+        self,
+        sec_user_id: str,
+        max_cursor: Union[int, str] = 0,
+        count: int = 20,
+    ) -> Dict:
+        """Get one page of awemes liked by the current authenticated account."""
+        uri = "/aweme/v1/web/aweme/favorite/"
+        params = {
+            "aid": "6383",
+            "sec_user_id": sec_user_id,
+            "max_cursor": max_cursor,
+            "count": count,
+        }
+        headers = copy.copy(self.headers)
+        headers["Referer"] = "https://www.douyin.com/user/self?showTab=like"
+        return await self.get(uri, params, headers=headers)
+
+    async def get_self_collected_awemes(
+        self,
+        cursor: Union[int, str] = 0,
+        count: int = 20,
+    ) -> Dict:
+        """Get one page of awemes collected by the current authenticated account."""
+        uri = "/aweme/v1/web/aweme/listcollection/"
+        headers = copy.copy(self.headers)
+        headers["Referer"] = (
+            "https://www.douyin.com/user/self?showTab=favorite_collection"
+        )
+        headers["Content-Type"] = (
+            "application/x-www-form-urlencoded;charset=UTF-8"
+        )
+        return await self.post(
+            uri,
+            data={"count": count, "cursor": cursor},
+            headers=headers,
+            params={"aid": "6383"},
+        )
 
     async def get_user_aweme_posts(self, sec_user_id: str, max_cursor: str = "") -> Dict:
         uri = "/aweme/v1/web/aweme/post/"

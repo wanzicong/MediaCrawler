@@ -128,6 +128,21 @@ class TestExcelStoreBase:
         assert excel_store.creators_headers_written is True
 
     @pytest.mark.asyncio
+    async def test_store_user_action(self, excel_store):
+        action_item = {
+            "account_hash": "hash",
+            "aweme_id": "aweme-1",
+            "action_type": "liked",
+            "observed_ts": 123,
+        }
+
+        await excel_store.store_user_action(action_item)
+
+        assert excel_store.user_actions_sheet is not None
+        assert excel_store.user_actions_sheet.max_row == 2
+        assert excel_store.user_actions_headers_written is True
+
+    @pytest.mark.asyncio
     async def test_multiple_items(self, excel_store):
         """Test storing multiple items"""
         # Store multiple content items
@@ -272,4 +287,17 @@ class TestSingletonPattern:
         ExcelStoreBase.flush_all()
 
         # Verify instances are cleared
+        assert len(ExcelStoreBase._instances) == 0
+
+    def test_flush_all_propagates_save_failure(self, monkeypatch):
+        """A failed workbook save must make the crawler exit non-zero."""
+        store = ExcelStoreBase.get_instance("test", "search")
+
+        def fail_flush():
+            raise OSError("disk full")
+
+        monkeypatch.setattr(store, "flush", fail_flush)
+
+        with pytest.raises(RuntimeError, match="test_search"):
+            ExcelStoreBase.flush_all()
         assert len(ExcelStoreBase._instances) == 0

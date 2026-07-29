@@ -103,7 +103,18 @@ class DouYinCrawler(AbstractCrawler):
             await self.context_page.goto(self.index_url)
 
             self.dy_client = await self.create_douyin_client(httpx_proxy_format)
-            if not await self.dy_client.pong(browser_context=self.browser_context):
+            explicit_cookie_login = (
+                config.LOGIN_TYPE == "cookie"
+                and bool(str(config.COOKIES or "").strip())
+            )
+            if (
+                explicit_cookie_login
+                or not await self.dy_client.pong(
+                    browser_context=self.browser_context,
+                    require_self_profile=config.CRAWLER_TYPE
+                    in {"liked", "collected"},
+                )
+            ):
                 login_obj = DouYinLogin(
                     login_type=config.LOGIN_TYPE,
                     login_phone="",  # you phone number
@@ -126,6 +137,10 @@ class DouYinCrawler(AbstractCrawler):
             elif config.CRAWLER_TYPE == "creator":
                 # Get the information and comments of the specified creator
                 await self.get_creators_and_videos()
+            elif config.CRAWLER_TYPE == "liked":
+                await self.get_self_liked_awemes()
+            elif config.CRAWLER_TYPE == "collected":
+                await self.get_self_collected_awemes()
 
             utils.logger.info("[DouYinCrawler.start] Douyin Crawler finished ...")
 
@@ -186,6 +201,223 @@ class DouYinCrawler(AbstractCrawler):
                 utils.logger.info(f"[DouYinCrawler.search] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds after page {page-1}")
             utils.logger.info(f"[DouYinCrawler.search] keyword:{keyword}, aweme_list:{aweme_list}")
 
+    async def get_self_liked_awemes(self) -> None:
+        """Crawl awemes liked by the current authenticated account."""
+        await self._crawl_self_aweme_feed("liked")
+
+    async def get_self_collected_awemes(self) -> None:
+        """Crawl awemes collected by the current authenticated account."""
+        await self._crawl_self_aweme_feed("collected")
+
+    @staticmethod
+    def _extract_self_user_ids(payload: Dict) -> Tuple[str, str]:
+        """Return uid and sec_uid without persisting either value."""
+        data = payload.get("data")
+        candidates = [
+            payload.get("user"),
+            payload.get("user_info"),
+            data.get("user") if isinstance(data, dict) else None,
+            data.get("user_info") if isinstance(data, dict) else None,
+            data,
+            payload,
+        ]
+        user_id = ""
+        sec_user_id = ""
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            user_id = user_id or str(candidate.get("uid") or "")
+            sec_user_id = sec_user_id or str(
+                candidate.get("sec_uid")
+                or candidate.get("sec_user_id")
+                or ""
+            )
+            if user_id and sec_user_id:
+                break
+        return user_id, sec_user_id
+
+    @classmethod
+    def _stable_self_account_key(cls, payload: Dict) -> str:
+        """Build one stable, namespaced identity from Douyin's sec_uid."""
+        _, sec_user_id = cls._extract_self_user_ids(payload)
+        if not sec_user_id:
+            return ""
+        return f"dy:sec_uid:{sec_user_id}"
+
+    @staticmethod
+    def _is_business_success(payload: Dict) -> bool:
+        if "status_code" not in payload:
+            return False
+        status_code = payload.get("status_code")
+        return status_code in (0, "0")
+
+    async def _crawl_self_aweme_feed(self, feed_type: str) -> None:
+        """Crawl and persist a paginated liked or collected feed."""
+        if feed_type not in {"liked", "collected"}:
+            raise ValueError(f"Unsupported Douyin self feed type: {feed_type}")
+
+        source_keyword_var.set(feed_type)
+        target_count = int(config.CRAWLER_MAX_NOTES_COUNT)
+        if target_count < 1:
+            raise DataFetchError(
+                f"Douyin {feed_type} target count must be at least 1"
+            )
+
+        try:
+            profile_res = await self.dy_client.get_self_profile()
+        except Exception as exc:
+            raise DataFetchError(
+                f"Unable to verify the current Douyin login for {feed_type}: "
+                f"{type(exc).__name__}"
+            ) from exc
+
+        if (
+            not isinstance(profile_res, dict)
+            or not profile_res
+            or not self._is_business_success(profile_res)
+        ):
+            status_code = (
+                profile_res.get("status_code")
+                if isinstance(profile_res, dict)
+                else "invalid_response"
+            )
+            raise DataFetchError(
+                f"Douyin self-profile request failed for {feed_type}, "
+                f"status_code:{status_code}"
+            )
+
+        account_id = self._stable_self_account_key(profile_res)
+        if not account_id:
+            raise DataFetchError(
+                "Douyin self-profile response does not contain a stable sec_uid"
+            )
+        _, sec_user_id = self._extract_self_user_ids(profile_res)
+
+        cursor: Any = 0
+        total_count = 0
+        page = 1
+        seen_aweme_ids = set()
+
+        while total_count < target_count:
+            page_size = min(20, target_count - total_count)
+            try:
+                if feed_type == "liked":
+                    feed_res = await self.dy_client.get_self_liked_awemes(
+                        sec_user_id=sec_user_id,
+                        max_cursor=cursor,
+                        count=page_size,
+                    )
+                else:
+                    feed_res = await self.dy_client.get_self_collected_awemes(
+                        cursor=cursor,
+                        count=page_size,
+                    )
+            except Exception as exc:
+                raise DataFetchError(
+                    f"Unable to fetch Douyin {feed_type} page {page}: "
+                    f"{type(exc).__name__}"
+                ) from exc
+
+            if not isinstance(feed_res, dict) or not self._is_business_success(feed_res):
+                status_code = (
+                    feed_res.get("status_code")
+                    if isinstance(feed_res, dict)
+                    else "invalid_response"
+                )
+                raise DataFetchError(
+                    f"Douyin {feed_type} page {page} failed, "
+                    f"status_code:{status_code}"
+                )
+
+            aweme_list = feed_res.get("aweme_list")
+            if not isinstance(aweme_list, list):
+                raise DataFetchError(
+                    f"Douyin {feed_type} page {page} response does not "
+                    "contain a valid aweme_list"
+                )
+
+            raw_has_more = feed_res.get("has_more")
+            if raw_has_more in (True, 1, "1"):
+                has_more = True
+            elif raw_has_more in (False, 0, "0"):
+                has_more = False
+            else:
+                raise DataFetchError(
+                    f"Douyin {feed_type} page {page} response contains "
+                    f"an invalid has_more value"
+                )
+
+            if not aweme_list:
+                if has_more:
+                    raise DataFetchError(
+                        f"Douyin {feed_type} page {page} is empty while "
+                        "has_more is true"
+                    )
+                utils.logger.info(
+                    f"[DouYinCrawler._crawl_self_aweme_feed] "
+                    f"{feed_type} page {page} is empty"
+                )
+                break
+
+            page_aweme_ids: List[str] = []
+            try:
+                for aweme_item in aweme_list:
+                    if total_count >= target_count:
+                        break
+                    if not isinstance(aweme_item, dict):
+                        continue
+                    aweme_id = str(aweme_item.get("aweme_id") or "")
+                    if not aweme_id or aweme_id in seen_aweme_ids:
+                        continue
+
+                    seen_aweme_ids.add(aweme_id)
+                    await douyin_store.update_douyin_aweme(aweme_item=aweme_item)
+                    await douyin_store.update_douyin_user_action(
+                        account_id=account_id,
+                        aweme_id=aweme_id,
+                        action_type=feed_type,
+                    )
+                    await self.get_aweme_media(aweme_item=aweme_item)
+                    page_aweme_ids.append(aweme_id)
+                    total_count += 1
+
+                if page_aweme_ids:
+                    await self.batch_get_note_comments(page_aweme_ids)
+            except Exception as exc:
+                raise DataFetchError(
+                    f"Unable to process Douyin {feed_type} page {page}: "
+                    f"{type(exc).__name__}"
+                ) from exc
+
+            utils.logger.info(
+                f"[DouYinCrawler._crawl_self_aweme_feed] "
+                f"processed {feed_type} page {page}, "
+                f"page_count:{len(page_aweme_ids)}, total_count:{total_count}"
+            )
+            if not page_aweme_ids:
+                raise DataFetchError(
+                    f"Douyin {feed_type} page {page} contained no valid aweme ids"
+                )
+            if total_count >= target_count:
+                break
+
+            if not has_more:
+                break
+
+            next_cursor = (
+                feed_res.get("max_cursor")
+                if feed_type == "liked"
+                else feed_res.get("cursor")
+            )
+            if next_cursor is None or str(next_cursor) == str(cursor):
+                raise DataFetchError(
+                    f"Douyin {feed_type} cursor did not advance on page {page}"
+                )
+
+            cursor = next_cursor
+            await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+            page += 1
+
     async def get_specified_awemes(self):
         """Get the information and comments of the specified post from URLs or IDs"""
         utils.logger.info("[DouYinCrawler.get_specified_awemes] Parsing video URLs...")
@@ -242,7 +474,7 @@ class DouYinCrawler(AbstractCrawler):
         Batch get note comments
         """
         if not config.ENABLE_GET_COMMENTS:
-            utils.logger.info(f"[DouYinCrawler.batch_get_note_comments] Crawling comment mode is not enabled")
+            utils.logger.info("[DouYinCrawler.batch_get_note_comments] Crawling comment mode is not enabled")
             return
 
         task_list: List[Task] = []
@@ -413,12 +645,10 @@ class DouYinCrawler(AbstractCrawler):
             aweme_item (Dict): 抖音作品详情
         """
         if not config.is_media_download_enabled():
-            utils.logger.info(f"[DouYinCrawler.get_aweme_media] Crawling image mode is not enabled")
+            utils.logger.info("[DouYinCrawler.get_aweme_media] Crawling image mode is not enabled")
             return
         # List of note urls. If it is a short video type, an empty list will be returned.
         note_download_url: List[str] = douyin_store._extract_note_image_list(aweme_item)
-        # The video URL will always exist, but when it is a short video type, the file is actually an audio file.
-        video_download_url: str = douyin_store._extract_video_download_url(aweme_item)
         # TODO: Douyin does not adopt the audio and video separation strategy, so the audio can be separated from the original video and will not be extracted for the time being.
         if note_download_url:
             await self.get_aweme_images(aweme_item)

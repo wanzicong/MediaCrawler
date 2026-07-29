@@ -6,6 +6,7 @@ export interface CrawlerConfig {
   specified_ids: string  // 详情模式下的帖子/视频ID
   creator_ids: string    // 创作者模式下的创作者ID
   start_page: number
+  max_notes_count: number
   enable_comments: boolean
   enable_sub_comments: boolean
   save_option: string
@@ -13,6 +14,7 @@ export interface CrawlerConfig {
   headless: boolean
   download_media: boolean
   transcribe_media: boolean
+  whisper_backend: 'api' | 'local'
   whisper_model: string
   whisper_language: string
 }

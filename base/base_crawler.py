@@ -99,6 +99,10 @@ class AbstractStore(ABC):
     async def store_creator(self, creator: Dict):
         pass
 
+    async def store_user_action(self, action_item: Dict):
+        """Store an account-to-content action when a platform supports it."""
+        pass
+
 
 class AbstractStoreImage(ABC):
     # TODO: support all platform

@@ -38,8 +38,13 @@ function Stop-ProcessTree {
         Stop-ProcessTree -ProcessId ([int]$child.ProcessId)
     }
     if (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) {
-        Stop-Process -Id $ProcessId -Force -ErrorAction Stop
-        $script:StoppedIds.Add($ProcessId)
+        Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+        if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+            $script:StoppedIds.Add($ProcessId)
+        }
+        else {
+            throw "Failed to stop MCP process PID=$ProcessId."
+        }
     }
 }
 

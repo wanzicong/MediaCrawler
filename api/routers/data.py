@@ -28,6 +28,43 @@ router = APIRouter(prefix="/data", tags=["data"])
 
 # Data directory
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
+PLATFORM_STORAGE_DIRS = {
+    "xhs": {"xhs"},
+    "dy": {"dy", "douyin"},
+    "ks": {"ks", "kuaishou"},
+    "bili": {"bili", "bilibili"},
+    "wb": {"wb", "weibo"},
+    "tieba": {"tieba"},
+    "zhihu": {"zhihu"},
+}
+
+
+def _normalize_platform_code(platform: str) -> Optional[str]:
+    normalized = platform.strip().lower()
+    if normalized in PLATFORM_STORAGE_DIRS:
+        return normalized
+    for code, directory_names in PLATFORM_STORAGE_DIRS.items():
+        if normalized in directory_names:
+            return code
+    return None
+
+
+def _platform_code_for_path(file_path: Path) -> Optional[str]:
+    try:
+        parts = file_path.relative_to(DATA_DIR).parts
+    except (ValueError, IndexError):
+        return None
+    if not parts:
+        return None
+    top_level = parts[0].lower()
+    if top_level == "media":
+        if len(parts) < 2:
+            return None
+        top_level = parts[1].lower()
+    for code, directory_names in PLATFORM_STORAGE_DIRS.items():
+        if top_level in directory_names:
+            return code
+    return None
 
 
 def get_file_info(file_path: Path) -> dict:
@@ -42,6 +79,9 @@ def get_file_info(file_path: Path) -> dict:
                 data = json.load(f)
                 if isinstance(data, list):
                     record_count = len(data)
+        elif file_path.suffix == ".jsonl":
+            with open(file_path, "r", encoding="utf-8") as f:
+                record_count = sum(1 for line in f if line.strip())
         elif file_path.suffix == ".csv":
             with open(file_path, "r", encoding="utf-8") as f:
                 record_count = sum(1 for _ in f) - 1  # Subtract header row
@@ -65,7 +105,7 @@ async def list_data_files(platform: Optional[str] = None, file_type: Optional[st
         return {"files": []}
 
     files = []
-    supported_extensions = {".json", ".csv", ".xlsx", ".xls"}
+    supported_extensions = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}
 
     for root, dirs, filenames in os.walk(DATA_DIR):
         root_path = Path(root)
@@ -76,8 +116,11 @@ async def list_data_files(platform: Optional[str] = None, file_type: Optional[st
 
             # Platform filter
             if platform:
-                rel_path = str(file_path.relative_to(DATA_DIR))
-                if platform.lower() not in rel_path.lower():
+                platform_code = _normalize_platform_code(platform)
+                if (
+                    platform_code is None
+                    or _platform_code_for_path(file_path) != platform_code
+                ):
                     continue
 
             # Type filter
@@ -96,7 +139,12 @@ async def list_data_files(platform: Optional[str] = None, file_type: Optional[st
 
 
 @router.get("/files/{file_path:path}")
-async def get_file_content(file_path: str, preview: bool = True, limit: int = 100):
+async def get_file_content(
+    file_path: str,
+    preview: bool = True,
+    limit: int = 100,
+    sheet: Optional[str] = None,
+):
     """Get file content or preview"""
     full_path = DATA_DIR / file_path
 
@@ -121,6 +169,24 @@ async def get_file_content(file_path: str, preview: bool = True, limit: int = 10
                     if isinstance(data, list):
                         return {"data": data[:limit], "total": len(data)}
                     return {"data": data, "total": 1}
+            elif full_path.suffix == ".jsonl":
+                rows = []
+                total = 0
+                with open(full_path, "r", encoding="utf-8") as f:
+                    for line_number, line in enumerate(f, start=1):
+                        if not line.strip():
+                            continue
+                        total += 1
+                        try:
+                            item = json.loads(line)
+                        except json.JSONDecodeError as exc:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Invalid JSONL at line {line_number}",
+                            ) from exc
+                        if len(rows) < limit:
+                            rows.append(item)
+                return {"data": rows, "total": total}
             elif full_path.suffix == ".csv":
                 import csv
                 with open(full_path, "r", encoding="utf-8") as f:
@@ -136,20 +202,47 @@ async def get_file_content(file_path: str, preview: bool = True, limit: int = 10
                     return {"data": rows, "total": total}
             elif full_path.suffix.lower() in (".xlsx", ".xls"):
                 import pandas as pd
-                # Read first limit rows
-                df = pd.read_excel(full_path, nrows=limit)
-                # Get total row count (only read first column to save memory)
-                df_count = pd.read_excel(full_path, usecols=[0])
+
+                with pd.ExcelFile(full_path) as excel_file:
+                    sheet_names = excel_file.sheet_names
+                    selected_sheet = sheet
+                    if selected_sheet is None:
+                        selected_sheet = (
+                            "UserActions"
+                            if "UserActions" in sheet_names
+                            else sheet_names[0]
+                        )
+                    if selected_sheet not in sheet_names:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Unknown Excel sheet: {selected_sheet}",
+                        )
+
+                    df = pd.read_excel(
+                        excel_file,
+                        sheet_name=selected_sheet,
+                        nrows=limit,
+                    )
+                    # Get total row count (only read first column to save memory)
+                    df_count = pd.read_excel(
+                        excel_file,
+                        sheet_name=selected_sheet,
+                        usecols=[0],
+                    )
                 total = len(df_count)
                 # Convert to list of dictionaries, handle NaN values
                 rows = df.where(pd.notnull(df), None).to_dict(orient='records')
                 return {
                     "data": rows,
                     "total": total,
-                    "columns": list(df.columns)
+                    "columns": list(df.columns),
+                    "sheet": selected_sheet,
+                    "sheets": sheet_names,
                 }
             else:
                 raise HTTPException(status_code=400, detail="Unsupported file type for preview")
+        except HTTPException:
+            raise
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON file")
         except Exception as e:
@@ -200,7 +293,7 @@ async def get_data_stats():
         "by_type": {}
     }
 
-    supported_extensions = {".json", ".csv", ".xlsx", ".xls"}
+    supported_extensions = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}
 
     for root, dirs, filenames in os.walk(DATA_DIR):
         root_path = Path(root)
@@ -219,11 +312,11 @@ async def get_data_stats():
                 stats["by_type"][file_type] = stats["by_type"].get(file_type, 0) + 1
 
                 # Statistics by platform (inferred from path)
-                rel_path = str(file_path.relative_to(DATA_DIR))
-                for platform in ["xhs", "dy", "ks", "bili", "wb", "tieba", "zhihu"]:
-                    if platform in rel_path.lower():
-                        stats["by_platform"][platform] = stats["by_platform"].get(platform, 0) + 1
-                        break
+                platform_code = _platform_code_for_path(file_path)
+                if platform_code:
+                    stats["by_platform"][platform_code] = (
+                        stats["by_platform"].get(platform_code, 0) + 1
+                    )
             except Exception:
                 continue
 

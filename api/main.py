@@ -175,6 +175,8 @@ async def get_config_options():
             {"value": "search", "label": "Search Mode"},
             {"value": "detail", "label": "Detail Mode"},
             {"value": "creator", "label": "Creator Mode"},
+            {"value": "liked", "label": "My Likes (Douyin)"},
+            {"value": "collected", "label": "My Collections (Douyin)"},
         ],
         "save_options": [
             {"value": "jsonl", "label": "JSONL File"},
@@ -202,4 +204,8 @@ if os.path.exists(WEBUI_DIR):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(
+        app,
+        host=os.getenv("MEDIACRAWLER_API_HOST", "127.0.0.1"),
+        port=int(os.getenv("MEDIACRAWLER_API_PORT", "8080")),
+    )

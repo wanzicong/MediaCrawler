@@ -1,4 +1,21 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2025 relakkes@gmail.com
+#
+# This file is part of MediaCrawler project.
+# Repository: https://github.com/NanmiCoder/MediaCrawler/blob/main/mcp_server\crawler_runner.py
+# GitHub: https://github.com/NanmiCoder
+# Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
+#
+# 声明：本代码仅供学习和研究目的使用。使用者应遵守以下原则：
+# 1. 不得用于任何商业用途。
+# 2. 使用时应遵守目标平台的使用条款和robots.txt规则。
+# 3. 不得进行大规模爬取或对平台造成运营干扰。
+# 4. 应合理控制请求频率，避免给目标平台带来不必要的负担。
+# 5. 不得用于任何非法或不当的用途。
+#
+# 详细许可条款请参阅项目根目录下的LICENSE文件。
+# 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
+
 """通过 subprocess 调用 MediaCrawler 的 main.py，封装为异步接口。
 
 抗卡死策略（任一缺失都会让 MCP 工具"假死"）：
@@ -15,7 +32,10 @@
 from __future__ import annotations
 
 import asyncio
+import codecs
 import os
+import re
+import signal
 import subprocess
 import sys
 import threading
@@ -38,6 +58,39 @@ HEARTBEAT_INTERVAL = 30
 # 全带回给 MCP 调用方会让 JSON 响应膨胀到反序列化慢/失败。
 MAX_BUFFER_BYTES = 256 * 1024
 KEEP_TAIL_BYTES = 64 * 1024
+
+
+def _force_kill_process_tree(process: subprocess.Popen) -> None:
+    """Force-stop the crawler and all descendants it launched."""
+    if process.poll() is not None:
+        return
+
+    if os.name == "nt":
+        try:
+            completed = subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            if process.poll() is None:
+                process.kill()
+            return
+        if completed.returncode != 0 and process.poll() is None:
+            process.kill()
+        return
+
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    except (AttributeError, OSError):
+        if process.poll() is None:
+            process.kill()
 
 
 @dataclass
@@ -70,12 +123,14 @@ async def run_crawler(
     download_media: bool = False,
     transcribe_media: bool = False,
     media_run_id: str = "",
+    whisper_backend: str = "api",
     whisper_model: str = "small",
     whisper_device: str = "auto",
     whisper_compute_type: str = "auto",
     whisper_language: str = "auto",
     whisper_word_timestamps: bool = False,
     save_data_option: str = "jsonl",
+    save_data_path: str = "",
     timeout: int = DEFAULT_TIMEOUT,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> CrawlResult:
@@ -83,12 +138,12 @@ async def run_crawler(
 
     Args:
         platform: 平台代号 (xhs/dy/ks/bili/wb/tieba/zhihu)
-        crawler_type: 爬取类型 (search/detail/creator)
+        crawler_type: 爬取类型 (search/detail/creator，抖音另支持 liked/collected)
         keywords: 搜索关键词（search 模式必填）
         specified_id: 内容ID/URL列表（detail 模式必填）
         creator_id: 创作者ID/URL列表（creator 模式必填）
         login_type: 登录方式 (qrcode/phone/cookie)
-        cookies: Cookie 字符串
+        cookies: Cookie 字符串，仅通过子进程环境变量传递
         get_comment: 是否抓取一级评论
         get_sub_comment: 是否抓取二级评论
         max_notes_count: 最大爬取数量
@@ -96,42 +151,81 @@ async def run_crawler(
         download_media: 是否下载图片和视频资源
         transcribe_media: 是否在爬虫进程内同步转写视频
         media_run_id: 媒体任务关联 ID
-        save_data_option: 数据保存格式 (jsonl/json/csv/sqlite/db)
+        whisper_backend: 转写后端，api 或 local
+        save_data_option: 数据保存格式 (jsonl/json/csv/sqlite/db/excel)
+        save_data_path: 本次运行的文件产物根目录
         timeout: 硬超时秒数
         on_log: 实时日志行回调（可选）
     """
     cmd = [
-        sys.executable, "-u", "main.py",
-        "--platform", platform,
-        "--lt", login_type,
-        "--type", crawler_type,
-        "--headless", "true" if headless else "false",
-        "--save_data_option", save_data_option,
-        "--crawler_max_notes_count", str(max_notes_count),
-        "--get_comment", "true" if get_comment else "false",
-        "--get_sub_comment", "true" if get_sub_comment else "false",
-        "--download_media", "true" if download_media or transcribe_media else "false",
-        "--transcribe_media", "true" if transcribe_media else "false",
-        "--whisper_model", whisper_model,
-        "--whisper_device", whisper_device,
-        "--whisper_compute_type", whisper_compute_type,
-        "--whisper_language", whisper_language,
-        "--whisper_word_timestamps", "true" if whisper_word_timestamps else "false",
+        sys.executable,
+        "-u",
+        "main.py",
+        "--platform",
+        platform,
+        "--lt",
+        login_type,
+        "--type",
+        crawler_type,
+        "--headless",
+        "true" if headless else "false",
+        "--save_data_option",
+        save_data_option,
+        "--crawler_max_notes_count",
+        str(max_notes_count),
+        "--get_comment",
+        "true" if get_comment else "false",
+        "--get_sub_comment",
+        "true" if get_sub_comment else "false",
+        "--download_media",
+        "true" if download_media or transcribe_media else "false",
+        "--transcribe_media",
+        "true" if transcribe_media else "false",
+        "--whisper_backend",
+        whisper_backend,
+        "--whisper_model",
+        whisper_model,
+        "--whisper_device",
+        whisper_device,
+        "--whisper_compute_type",
+        whisper_compute_type,
+        "--whisper_language",
+        whisper_language,
+        "--whisper_word_timestamps",
+        "true" if whisper_word_timestamps else "false",
     ]
     if media_run_id:
         cmd.extend(["--media_run_id", media_run_id])
+    if save_data_path:
+        cmd.extend(["--save_data_path", save_data_path])
     if keywords:
         cmd.extend(["--keywords", keywords])
     if specified_id:
         cmd.extend(["--specified_id", specified_id])
     if creator_id:
         cmd.extend(["--creator_id", creator_id])
-    if cookies:
-        cmd.extend(["--cookies", cookies])
 
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUNBUFFERED"] = "1"
+    env.pop("MEDIACRAWLER_COOKIES", None)
+    if cookies:
+        env["MEDIACRAWLER_COOKIES"] = cookies
+
+    def _redact_output(text: str) -> str:
+        redacted = text.replace(cookies, "[REDACTED]") if cookies else text
+        redacted = re.sub(
+            r"(?i)\b(cookie|cookies|MEDIACRAWLER_COOKIES)\b"
+            r"(\s*[:=]\s*)[^\r\n]*",
+            r"\1\2[REDACTED]",
+            redacted,
+        )
+        return re.sub(
+            r"(?i)\b(sessionid|sid_guard|ttwid|passport_csrf_token|msToken)"
+            r"\s*=\s*[^;\s]+",
+            r"\1=[REDACTED]",
+            redacted,
+        )
 
     # 创建子进程前 + 启动时间记录
     loop = asyncio.get_event_loop()
@@ -145,6 +239,13 @@ async def run_crawler(
         state = {"last_activity": time.time()}
 
         try:
+            popen_kwargs = {}
+            if os.name == "nt":
+                popen_kwargs["creationflags"] = (
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                )
+            else:
+                popen_kwargs["start_new_session"] = True
             proc = subprocess.Popen(
                 cmd,
                 cwd=PROJECT_ROOT,
@@ -152,6 +253,7 @@ async def run_crawler(
                 stderr=subprocess.PIPE,
                 env=env,
                 bufsize=0,
+                **popen_kwargs,
             )
         except Exception as e:
             return CrawlResult(
@@ -183,20 +285,79 @@ async def run_crawler(
 
         def _read_thread(stream, sink: list[str], byte_counter: dict) -> None:
             """线程里同步读子进程 stream。Windows 上同步 read 比 asyncio Proactor 稳定。"""
+            pending_text = ""
+            decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+            decoding_bytes = False
+            dropping_overlong_line = False
+
+            def _emit(raw_text: str) -> None:
+                if not raw_text:
+                    return
+                redacted_text = _redact_output(raw_text)
+                _append_capped(sink, redacted_text, byte_counter)
+                _bump()
+                if on_log and redacted_text:
+                    try:
+                        on_log(redacted_text.rstrip("\n"))
+                    except Exception:
+                        pass
+
+            def _consume_pending(*, final: bool = False) -> None:
+                """Only expose complete log lines so credentials cannot straddle emits."""
+                nonlocal pending_text, dropping_overlong_line
+
+                while True:
+                    if dropping_overlong_line:
+                        newline_index = pending_text.find("\n")
+                        if newline_index < 0:
+                            pending_text = ""
+                            return
+                        pending_text = pending_text[newline_index + 1 :]
+                        dropping_overlong_line = False
+                        continue
+
+                    newline_index = pending_text.find("\n")
+                    if newline_index >= 0:
+                        _emit(pending_text[: newline_index + 1])
+                        pending_text = pending_text[newline_index + 1 :]
+                        continue
+
+                    if final:
+                        _emit(pending_text)
+                        pending_text = ""
+                        return
+
+                    if len(pending_text) > MAX_BUFFER_BYTES:
+                        pending_text = ""
+                        dropping_overlong_line = True
+                        _emit(
+                            "\n... [日志单行过长，已省略以保护敏感信息] ...\n"
+                        )
+                    return
+
             try:
                 while True:
                     chunk = stream.read(4096)
                     if not chunk:
+                        if decoding_bytes:
+                            pending_text += decoder.decode(b"", final=True)
+                        _consume_pending(final=True)
                         return
-                    text = chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else chunk
-                    _append_capped(sink, text, byte_counter)
-                    _bump()
-                    if on_log and text:
-                        try:
-                            on_log(text.rstrip("\n"))
-                        except Exception:
-                            pass
+                    if isinstance(chunk, bytes):
+                        decoding_bytes = True
+                        text = decoder.decode(chunk, final=False)
+                    else:
+                        if decoding_bytes:
+                            pending_text += decoder.decode(b"", final=True)
+                            decoder = codecs.getincrementaldecoder("utf-8")(
+                                errors="replace"
+                            )
+                            decoding_bytes = False
+                        text = chunk
+                    pending_text += text
+                    _consume_pending()
             except Exception as e:
+                _consume_pending(final=True)
                 try:
                     stderr_chunks.append(
                         f"\n[read thread] 异常: {type(e).__name__}: {e}\n"
@@ -205,10 +366,14 @@ async def run_crawler(
                     pass
 
         t_out = threading.Thread(
-            target=_read_thread, args=(proc.stdout, stdout_chunks, stdout_bytes), daemon=True
+            target=_read_thread,
+            args=(proc.stdout, stdout_chunks, stdout_bytes),
+            daemon=True,
         )
         t_err = threading.Thread(
-            target=_read_thread, args=(proc.stderr, stderr_chunks, stderr_bytes), daemon=True
+            target=_read_thread,
+            args=(proc.stderr, stderr_chunks, stderr_bytes),
+            daemon=True,
         )
         t_out.start()
         t_err.start()
@@ -237,10 +402,7 @@ async def run_crawler(
                     f"\n[watchdog] {int(idle)}s 无活动，视为卡死并 kill "
                     f"(pid={proc.pid})\n"
                 )
-                try:
-                    proc.kill()
-                except ProcessLookupError:
-                    pass
+                _force_kill_process_tree(proc)
                 try:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
@@ -250,10 +412,7 @@ async def run_crawler(
                 stderr_chunks.append(
                     f"\n[watchdog] 硬超时 {timeout}s 到达，强制 kill (pid={proc.pid})\n"
                 )
-                try:
-                    proc.kill()
-                except ProcessLookupError:
-                    pass
+                _force_kill_process_tree(proc)
                 try:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
@@ -263,10 +422,7 @@ async def run_crawler(
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
+            _force_kill_process_tree(proc)
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -277,10 +433,12 @@ async def run_crawler(
         t_hb.join(timeout=1)
 
         returncode = proc.returncode if proc.returncode is not None else -1
+        stdout = _redact_output("".join(stdout_chunks))
+        stderr = _redact_output("".join(stderr_chunks))
         return CrawlResult(
             returncode=returncode,
-            stdout="".join(stdout_chunks),
-            stderr="".join(stderr_chunks),
+            stdout=stdout,
+            stderr=stderr,
             success=returncode == 0,
         )
 

@@ -21,8 +21,9 @@
 from __future__ import annotations
 
 
-import sys
+import os
 import re
+import sys
 from enum import Enum
 from types import SimpleNamespace
 from typing import Iterable, Optional, Sequence, Type, TypeVar
@@ -63,6 +64,8 @@ class CrawlerTypeEnum(str, Enum):
     SEARCH = "search"
     DETAIL = "detail"
     CREATOR = "creator"
+    LIKED = "liked"
+    COLLECTED = "collected"
 
 
 class SaveDataOptionEnum(str, Enum):
@@ -178,7 +181,11 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             CrawlerTypeEnum,
             typer.Option(
                 "--type",
-                help="Crawler type (search=Search | detail=Detail | creator=Creator)",
+                help=(
+                    "Crawler type (search=Search | detail=Detail | "
+                    "creator=Creator | liked=My likes [Douyin] | "
+                    "collected=My collections [Douyin])"
+                ),
                 rich_help_panel="Basic Configuration",
             ),
         ] = _coerce_enum(CrawlerTypeEnum, config.CRAWLER_TYPE, CrawlerTypeEnum.SEARCH),
@@ -199,14 +206,14 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             ),
         ] = config.KEYWORDS,
         get_comment: Annotated[
-            str,
+            Optional[str],
             typer.Option(
                 "--get_comment",
                 help="Whether to crawl first-level comments, supports yes/true/t/y/1 or no/false/f/n/0",
                 rich_help_panel="Comment Configuration",
                 show_default=True,
             ),
-        ] = str(config.ENABLE_GET_COMMENTS),
+        ] = None,
         get_sub_comment: Annotated[
             str,
             typer.Option(
@@ -244,13 +251,14 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             ),
         ] = None,
         cookies: Annotated[
-            str,
+            Optional[str],
             typer.Option(
                 "--cookies",
                 help="Cookie value used for Cookie login method",
                 rich_help_panel="Account Configuration",
+                show_default=False,
             ),
-        ] = config.COOKIES,
+        ] = None,
         specified_id: Annotated[
             str,
             typer.Option(
@@ -296,11 +304,19 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             str,
             typer.Option(
                 "--transcribe_media",
-                help="Whether to transcribe downloaded videos with faster-whisper",
+                help="Whether to transcribe downloaded videos",
                 rich_help_panel="Media Configuration",
                 show_default=True,
             ),
         ] = str(config.TRANSCRIBE_MEDIA),
+        whisper_backend: Annotated[
+            str,
+            typer.Option(
+                "--whisper_backend",
+                help="Transcription backend: api | local",
+                rich_help_panel="Media Configuration",
+            ),
+        ] = config.WHISPER_BACKEND,
         media_run_id: Annotated[
             str,
             typer.Option(
@@ -402,22 +418,71 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
     ) -> SimpleNamespace:
         """MediaCrawler 命令行入口"""
 
-        enable_comment = _to_bool(get_comment)
-        enable_sub_comment = _to_bool(get_sub_comment)
+        enable_comment = (
+            (
+                False
+                if crawler_type
+                in {CrawlerTypeEnum.LIKED, CrawlerTypeEnum.COLLECTED}
+                else bool(config.ENABLE_GET_COMMENTS)
+            )
+            if get_comment is None
+            else _to_bool(get_comment)
+        )
+        enable_sub_comment = (
+            _to_bool(get_sub_comment) if enable_comment else False
+        )
         enable_headless = _to_bool(headless)
         enable_ip_proxy_value = _to_bool(enable_ip_proxy)
         enable_download_media = _to_bool(download_media)
         enable_transcribe_media = _to_bool(transcribe_media)
         enable_word_timestamps = _to_bool(whisper_word_timestamps)
+        normalized_whisper_backend = whisper_backend.strip().lower()
+        if normalized_whisper_backend not in {"api", "local"}:
+            raise typer.BadParameter(
+                "whisper_backend must be api or local",
+                param_hint="--whisper_backend",
+            )
+        if (
+            crawler_type in {CrawlerTypeEnum.LIKED, CrawlerTypeEnum.COLLECTED}
+            and platform is not PlatformEnum.DOUYIN
+        ):
+            raise typer.BadParameter(
+                "liked and collected modes are only supported by Douyin",
+                param_hint="--type",
+            )
+        if crawler_max_notes_count < 1:
+            raise typer.BadParameter(
+                "crawler_max_notes_count must be at least 1",
+                param_hint="--crawler_max_notes_count",
+            )
         init_db_value = init_db.value if init_db else None
 
         # Parse specified_id and creator_id into lists
-        specified_id_list = [id.strip() for id in specified_id.split(",") if id.strip()] if specified_id else []
-        creator_id_list = [id.strip() for id in creator_id.split(",") if id.strip()] if creator_id else []
+        specified_id_list = (
+            [id.strip() for id in specified_id.split(",") if id.strip()]
+            if specified_id
+            else []
+        )
+        creator_id_list = (
+            [id.strip() for id in creator_id.split(",") if id.strip()]
+            if creator_id
+            else []
+        )
 
         # override global config
+        resolved_cookies = (
+            cookies
+            if cookies is not None
+            else os.getenv("MEDIACRAWLER_COOKIES", config.COOKIES)
+        )
+        resolved_cookies = str(resolved_cookies or "").strip()
+        effective_login_type = (
+            LoginTypeEnum.COOKIE.value
+            if resolved_cookies
+            else lt.value
+        )
         config.PLATFORM = platform.value
-        config.LOGIN_TYPE = lt.value
+        config.LOGIN_TYPE = effective_login_type
         config.CRAWLER_TYPE = crawler_type.value
         config.START_PAGE = start
         config.KEYWORDS = keywords
@@ -426,13 +491,15 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
         config.HEADLESS = enable_headless
         config.CDP_HEADLESS = enable_headless
         config.SAVE_DATA_OPTION = save_data_option.value
-        config.COOKIES = cookies
+        config.COOKIES = resolved_cookies
+        os.environ.pop("MEDIACRAWLER_COOKIES", None)
         config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = max_comments_count_singlenotes
         config.CRAWLER_MAX_NOTES_COUNT = crawler_max_notes_count
         config.DOWNLOAD_MEDIA = enable_download_media or enable_transcribe_media
         config.ENABLE_GET_MEIDAS = config.DOWNLOAD_MEDIA
         config.TRANSCRIBE_MEDIA = enable_transcribe_media
         config.MEDIA_RUN_ID = media_run_id
+        config.WHISPER_BACKEND = normalized_whisper_backend
         config.WHISPER_MODEL = whisper_model
         config.WHISPER_DEVICE = whisper_device
         config.WHISPER_COMPUTE_TYPE = whisper_compute_type
@@ -491,6 +558,7 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             headless=config.HEADLESS,
             download_media=config.DOWNLOAD_MEDIA,
             transcribe_media=config.TRANSCRIBE_MEDIA,
+            whisper_backend=config.WHISPER_BACKEND,
             media_run_id=config.MEDIA_RUN_ID,
             save_data_option=config.SAVE_DATA_OPTION,
             init_db=init_db_value,
@@ -506,7 +574,9 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
 
     try:
         result = command.main(args=cli_args, standalone_mode=False)
-        if isinstance(result, int):  # help/options handled by Typer; propagate exit code
+        if isinstance(
+            result, int
+        ):  # help/options handled by Typer; propagate exit code
             raise SystemExit(result)
         return result
     except typer.Exit as exc:  # pragma: no cover - CLI exit paths

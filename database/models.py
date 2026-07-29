@@ -24,9 +24,16 @@
 # 创作者个人档案表（XhsCreator/DyCreator/WeiboCreator/TiebaCreator/
 # ZhihuCreator/BilibiliUpInfo/BilibiliContactInfo）已整体移除。
 
-from sqlalchemy import create_engine, Column, Integer, Text, String, BigInteger
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint as _CheckConstraint,
+    Column,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint as _UniqueConstraint,
+)
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
@@ -106,6 +113,44 @@ class DouyinAweme(Base):
     music_download_url = Column(Text, comment='音乐下载URL')
     note_download_url = Column(Text, comment='笔记下载URL')
     source_keyword = Column(Text, default='', comment='来源关键词')
+
+class DouyinUserAction(Base):
+    """当前登录账号与抖音作品之间的匿名化互动关系。"""
+
+    __tablename__ = 'douyin_user_action'
+    __table_args__ = (
+        _UniqueConstraint(
+            'account_hash',
+            'aweme_id',
+            'action_type',
+            name='uq_douyin_user_action',
+        ),
+        _CheckConstraint(
+            "action_type IN ('liked', 'collected')",
+            name='ck_douyin_user_action_type',
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, comment='主键ID')
+    account_hash = Column(
+        String(64),
+        nullable=False,
+        index=True,
+        comment='当前登录账号匿名哈希',
+    )
+    aweme_id = Column(
+        String(255),
+        nullable=False,
+        index=True,
+        comment='作品ID',
+    )
+    action_type = Column(
+        String(32),
+        nullable=False,
+        index=True,
+        comment='互动类型：liked/collected',
+    )
+    observed_ts = Column(BigInteger, nullable=False, comment='本次观察时间戳')
 
 class DouyinAwemeComment(Base):
     __tablename__ = 'douyin_aweme_comment'

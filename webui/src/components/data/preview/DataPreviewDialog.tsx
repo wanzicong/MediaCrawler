@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
@@ -9,6 +10,13 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { dataApi } from '@/lib/api'
 import { DataPreviewTable } from './DataPreviewTable'
 import type { DataFile } from '@/types/crawler'
@@ -21,15 +29,24 @@ interface DataPreviewDialogProps {
 
 export function DataPreviewDialog({ file, open, onOpenChange }: DataPreviewDialogProps) {
   const { t } = useTranslation('data')
+  const [selectedSheet, setSelectedSheet] = useState('')
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['filePreview', file.path],
+    queryKey: ['filePreview', file.path, selectedSheet],
     queryFn: async () => {
-      const { data } = await dataApi.getFileContent(file.path, 100)
+      const { data } = await dataApi.getFileContent(
+        file.path,
+        100,
+        selectedSheet || undefined,
+      )
       return data
     },
     enabled: open,
   })
+
+  useEffect(() => {
+    setSelectedSheet('')
+  }, [file.path, open])
 
   const handleDownload = () => {
     const url = dataApi.getDownloadUrl(file.path)
@@ -65,6 +82,29 @@ export function DataPreviewDialog({ file, open, onOpenChange }: DataPreviewDialo
             </Button>
           </div>
         </DialogHeader>
+
+        {data?.sheets && data.sheets.length > 1 && (
+          <div className="flex items-center gap-3 mt-3">
+            <span className="text-xs font-mono text-cyber-text-muted">
+              {t('preview.sheet')}
+            </span>
+            <Select
+              value={selectedSheet || data.sheet}
+              onValueChange={setSelectedSheet}
+            >
+              <SelectTrigger className="h-8 w-48 text-xs font-mono">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {data.sheets.map((sheet) => (
+                  <SelectItem key={sheet} value={sheet}>
+                    {sheet}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* 内容区域 */}
         <div className="flex-1 overflow-hidden min-h-0 mt-4">

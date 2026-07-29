@@ -23,6 +23,8 @@
     "crawlType": "爬取类型",
     "crawlTypePlaceholder": "选择类型",
     "startPage": "起始页",
+    "maxNotesCount": "最大作品数",
+    "maxNotesCountHint": "本次最多抓取的帖子或视频数量（1-10000）",
     "keywords": "关键词",
     "keywordsHint": "输入关键词后按回车添加",
     "keywordsPlaceholder": "输入关键词，按回车添加...",
@@ -60,7 +62,11 @@
     "downloadMedia": "下载媒体",
     "downloadMediaHint": "将图片和视频保存到本地",
     "transcribeMedia": "视频转文字",
-    "transcribeMediaHint": "使用 faster-whisper 识别视频语音",
+    "transcribeMediaHint": "默认调用转写 API，失败时自动回退本地模型",
+    "whisperBackend": "转写后端",
+    "whisperBackendHint": "API 模式失败时自动使用本地模型",
+    "whisperBackendApi": "API 优先（推荐）",
+    "whisperBackendLocal": "仅本地模型",
     "whisperModel": "Whisper 模型",
     "whisperLanguage": "识别语言"
   },
@@ -71,6 +77,10 @@
     "stopping": "停止中..."
   },
   "warning": {
+    "douyinPersonalMode": {
+      "liked": "将读取当前已登录抖音账号的点赞作品，无需填写关键词或作品 ID。为减少请求，默认不抓评论，可在输出配置中手动开启。",
+      "collected": "将读取当前已登录抖音账号的收藏作品，无需填写关键词或作品 ID。为减少请求，默认不抓评论，可在输出配置中手动开启。"
+    },
     "cookieSlider": "[提示] 小红书和抖音平台不建议使用 Cookie 登录，因为可能会触发滑块验证",
     "xhsToken": "[重要] 小红书 URL 必须包含 xsec_token 参数，请从浏览器复制完整 URL"
   }

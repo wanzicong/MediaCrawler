@@ -20,7 +20,8 @@
 
 import asyncio
 import functools
-import sys
+import re
+import time
 from typing import Optional
 
 from playwright.async_api import BrowserContext, Page
@@ -49,6 +50,7 @@ class DouYinLogin(AbstractLogin):
         self.login_phone = login_phone
         self.scan_qrcode_time = 60
         self.cookie_str = cookie_str
+        self._last_self_profile_check_at = float("-inf")
 
     async def begin(self):
         """
@@ -56,13 +58,12 @@ class DouYinLogin(AbstractLogin):
             The verification accuracy of the slider verification is not very good... If there are no special requirements, it is recommended not to use Douyin login, or use cookie login
         """
 
-        # popup login dialog
-        await self.popup_login_dialog()
-
         # select login type
         if config.LOGIN_TYPE == "qrcode":
+            await self.popup_login_dialog()
             await self.login_by_qrcode()
         elif config.LOGIN_TYPE == "phone":
+            await self.popup_login_dialog()
             await self.login_by_mobile()
         elif config.LOGIN_TYPE == "cookie":
             await self.login_by_cookies()
@@ -76,37 +77,89 @@ class DouYinLogin(AbstractLogin):
             await self.check_page_display_slider(move_step=3, slider_level="hard")
 
         # check login state
-        utils.logger.info(f"[DouYinLogin.begin] login finished then check login state ...")
+        utils.logger.info(
+            "[DouYinLogin.begin] login finished then check login state ..."
+        )
         try:
-            await self.check_login_state()
-        except RetryError:
-            utils.logger.info("[DouYinLogin.begin] login failed please confirm ...")
-            sys.exit()
+            if config.LOGIN_TYPE == "cookie":
+                await self.check_cookie_login_state()
+            else:
+                await self.check_login_state()
+        except RetryError as exc:
+            utils.logger.error("[DouYinLogin.begin] login failed please confirm ...")
+            raise RuntimeError("Douyin login verification failed") from exc
 
         # wait for redirect
         wait_redirect_seconds = 5
         utils.logger.info(f"[DouYinLogin.begin] Login successful then wait for {wait_redirect_seconds} seconds redirect ...")
         await asyncio.sleep(wait_redirect_seconds)
 
+    async def _check_login_state_once(self) -> bool:
+        """Check one snapshot of the current Douyin login state."""
+        if config.LOGIN_TYPE == "cookie":
+            return await self._check_authenticated_self_profile()
+
+        # Legacy localStorage/cookie markers may remain after a session expires.
+        # The authenticated self-profile endpoint is authoritative, and polling
+        # it is throttled regardless of stale marker state.
+        now = time.monotonic()
+        if now - self._last_self_profile_check_at < 10:
+            return False
+        self._last_self_profile_check_at = now
+        return await self._check_authenticated_self_profile()
+
+    async def _check_authenticated_self_profile(self) -> bool:
+        """Verify the active session against the authenticated self endpoint."""
+        try:
+            profile_state = await self.context_page.evaluate(
+                """
+                async () => {
+                  try {
+                    const response = await fetch(
+                      "/aweme/v1/web/user/profile/self/?aid=6383",
+                      {
+                        method: "GET",
+                        credentials: "include",
+                        headers: {"Accept": "application/json"}
+                      }
+                    );
+                    if (!response.ok) return null;
+                    const body = await response.json();
+                    const user =
+                      body?.user ||
+                      body?.user_info ||
+                      body?.data?.user ||
+                      body?.data?.user_info ||
+                      body?.data;
+                    return {
+                      status_code: body?.status_code,
+                      account_id: user?.uid || user?.sec_uid || ""
+                    };
+                  } catch (_) {
+                    return null;
+                  }
+                }
+                """
+            )
+            return bool(
+                isinstance(profile_state, dict)
+                and "status_code" in profile_state
+                and profile_state.get("status_code") in (0, "0")
+                and profile_state.get("account_id")
+            )
+        except Exception:
+            await asyncio.sleep(0.1)
+            return False
+
     @retry(stop=stop_after_attempt(600), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
     async def check_login_state(self):
-        """Check if the current login status is successful and return True otherwise return False"""
-        current_cookie = await self.browser_context.cookies()
-        _, cookie_dict = utils.convert_cookies(current_cookie)
+        """Poll login state for interactive QR-code or phone login."""
+        return await self._check_login_state_once()
 
-        for page in self.browser_context.pages:
-            try:
-                local_storage = await page.evaluate("() => window.localStorage")
-                if local_storage.get("HasUserLogin", "") == "1":
-                    return True
-            except Exception as e:
-                # utils.logger.warn(f"[DouYinLogin] check_login_state waring: {e}")
-                await asyncio.sleep(0.1)
-
-        if cookie_dict.get("LOGIN_STATUS") == "1":
-            return True
-
-        return False
+    @retry(stop=stop_after_attempt(5), wait=wait_fixed(1), retry=retry_if_result(lambda value: value is False))
+    async def check_cookie_login_state(self):
+        """Verify an injected cookie quickly without a ten-minute false wait."""
+        return await self._check_login_state_once()
 
     async def popup_login_dialog(self):
         """If the login dialog box does not pop up automatically, we will manually click the login button"""
@@ -129,8 +182,9 @@ class DouYinLogin(AbstractLogin):
             selector=qrcode_img_selector
         )
         if not base64_qrcode_img:
-            utils.logger.info("[DouYinLogin.login_by_qrcode] login qrcode not found please confirm ...")
-            sys.exit()
+            raise RuntimeError(
+                "[DouYinLogin.login_by_qrcode] login qrcode not found"
+            )
 
         partial_show_qrcode = functools.partial(utils.show_qrcode, base64_qrcode_img)
         asyncio.get_running_loop().run_in_executor(executor=None, func=partial_show_qrcode)
@@ -185,8 +239,9 @@ class DouYinLogin(AbstractLogin):
         slider_verify_success = False
         while not slider_verify_success:
             if max_slider_try_times <= 0:
-                utils.logger.error("[DouYinLogin.check_page_display_slider] slider verify failed ...")
-                sys.exit()
+                raise RuntimeError(
+                    "[DouYinLogin.check_page_display_slider] slider verify failed"
+                )
             try:
                 await self.move_slider(back_selector, gap_selector, move_step, slider_level)
                 await asyncio.sleep(1)
@@ -265,10 +320,20 @@ class DouYinLogin(AbstractLogin):
 
     async def login_by_cookies(self):
         utils.logger.info("[DouYinLogin.login_by_cookies] Begin login douyin by cookie ...")
-        for key, value in utils.convert_str_cookie_to_dict(self.cookie_str).items():
+        cookie_items = utils.convert_str_cookie_to_dict(self.cookie_str)
+        if not cookie_items:
+            raise ValueError("Douyin cookie login requires a non-empty cookie")
+
+        # Explicit cookies must replace, rather than merge with, a persisted
+        # browser_data session. Otherwise an existing account can silently win.
+        await self.browser_context.clear_cookies(
+            domain=re.compile(r"(^|\.)douyin\.com$")
+        )
+        for key, value in cookie_items.items():
             await self.browser_context.add_cookies([{
                 'name': key,
                 'value': value,
                 'domain': ".douyin.com",
                 'path': "/"
             }])
+        await self.context_page.reload(wait_until="domcontentloaded")

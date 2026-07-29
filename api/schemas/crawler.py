@@ -17,8 +17,9 @@
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
 from enum import Enum
-from typing import Optional, Literal
-from pydantic import BaseModel, Field
+from typing import Literal, Optional
+
+from pydantic import BaseModel, Field, model_validator
 
 
 MAX_API_LIMIT_COUNT = 10000
@@ -26,6 +27,7 @@ MAX_API_LIMIT_COUNT = 10000
 
 class PlatformEnum(str, Enum):
     """Supported media platforms"""
+
     XHS = "xhs"
     DOUYIN = "dy"
     KUAISHOU = "ks"
@@ -37,6 +39,7 @@ class PlatformEnum(str, Enum):
 
 class LoginTypeEnum(str, Enum):
     """Login method"""
+
     QRCODE = "qrcode"
     PHONE = "phone"
     COOKIE = "cookie"
@@ -44,13 +47,17 @@ class LoginTypeEnum(str, Enum):
 
 class CrawlerTypeEnum(str, Enum):
     """Crawler type"""
+
     SEARCH = "search"
     DETAIL = "detail"
     CREATOR = "creator"
+    LIKED = "liked"
+    COLLECTED = "collected"
 
 
 class SaveDataOptionEnum(str, Enum):
     """Data save option"""
+
     CSV = "csv"
     DB = "db"
     JSON = "json"
@@ -62,6 +69,7 @@ class SaveDataOptionEnum(str, Enum):
 
 class CrawlerStartRequest(BaseModel):
     """Crawler start request"""
+
     platform: PlatformEnum
     login_type: LoginTypeEnum = LoginTypeEnum.QRCODE
     crawler_type: CrawlerTypeEnum = CrawlerTypeEnum.SEARCH
@@ -69,21 +77,47 @@ class CrawlerStartRequest(BaseModel):
     specified_ids: str = ""  # Post/video ID list for detail mode, comma-separated
     creator_ids: str = ""  # Creator ID list for creator mode, comma-separated
     start_page: int = 1
-    enable_comments: bool = True
+    enable_comments: Optional[bool] = None
     enable_sub_comments: bool = False
     save_option: SaveDataOptionEnum = SaveDataOptionEnum.JSONL
     cookies: str = ""
     headless: bool = False
     download_media: bool = False
     transcribe_media: bool = False
+    whisper_backend: Literal["api", "local"] = "api"
     whisper_model: str = "small"
     whisper_language: str = "auto"
     max_notes_count: Optional[int] = Field(default=None, ge=1, le=MAX_API_LIMIT_COUNT)
-    max_comments_count: Optional[int] = Field(default=None, ge=1, le=MAX_API_LIMIT_COUNT)
+    max_comments_count: Optional[int] = Field(
+        default=None, ge=1, le=MAX_API_LIMIT_COUNT
+    )
+
+    @model_validator(mode="after")
+    def validate_personal_mode_platform(self):
+        self.cookies = self.cookies.strip()
+        if self.cookies:
+            self.login_type = LoginTypeEnum.COOKIE
+        if (
+            self.crawler_type
+            in {CrawlerTypeEnum.LIKED, CrawlerTypeEnum.COLLECTED}
+            and self.platform is not PlatformEnum.DOUYIN
+        ):
+            raise ValueError(
+                "liked and collected modes are only supported by Douyin"
+            )
+        if self.enable_comments is None:
+            self.enable_comments = self.crawler_type not in {
+                CrawlerTypeEnum.LIKED,
+                CrawlerTypeEnum.COLLECTED,
+            }
+        if not self.enable_comments:
+            self.enable_sub_comments = False
+        return self
 
 
 class CrawlerStatusResponse(BaseModel):
     """Crawler status response"""
+
     status: Literal["idle", "running", "stopping", "error"]
     platform: Optional[str] = None
     crawler_type: Optional[str] = None
@@ -93,6 +127,7 @@ class CrawlerStatusResponse(BaseModel):
 
 class LogEntry(BaseModel):
     """Log entry"""
+
     id: int
     timestamp: str
     level: Literal["info", "warning", "error", "success", "debug"]
@@ -101,6 +136,7 @@ class LogEntry(BaseModel):
 
 class DataFileInfo(BaseModel):
     """Data file information"""
+
     name: str
     path: str
     size: int

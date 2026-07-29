@@ -23,18 +23,15 @@
 # @Time    : 2025/9/5 19:34
 # @Desc    : Douyin storage implementation class
 import asyncio
-import json
-import os
-import pathlib
 from typing import Dict
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
-import config
 from base.base_crawler import AbstractStore
 from database.db_session import get_session
-from database.models import DouyinAweme, DouyinAwemeComment
-from tools import utils, words
+from database.models import DouyinAweme, DouyinAwemeComment, DouyinUserAction
+from tools import utils
 from tools.async_file_writer import AsyncFileWriter
 from var import crawler_type_var
 from database.mongodb_store_base import MongoDBStoreBase
@@ -90,6 +87,13 @@ class DouyinCsvStoreImplement(AbstractStore):
         )
 
 
+    async def store_user_action(self, action_item: Dict):
+        await self.file_writer.write_to_csv(
+            item=action_item,
+            item_type="user_actions",
+        )
+
+
 class DouyinDbStoreImplement(AbstractStore):
     async def store_content(self, content_item: Dict):
         """
@@ -98,15 +102,16 @@ class DouyinDbStoreImplement(AbstractStore):
             content_item: content item dict
         """
         aweme_id = content_item.get("aweme_id")
+        if not aweme_id:
+            raise ValueError("Douyin content requires a non-empty aweme_id")
         async with get_session() as session:
             result = await session.execute(select(DouyinAweme).where(DouyinAweme.aweme_id == aweme_id))
             aweme_detail = result.scalar_one_or_none()
 
             if not aweme_detail:
                 content_item["add_ts"] = utils.get_current_timestamp()
-                if content_item.get("title"):
-                    new_content = DouyinAweme(**content_item)
-                    session.add(new_content)
+                new_content = DouyinAweme(**content_item)
+                session.add(new_content)
             else:
                 for key, value in content_item.items():
                     setattr(aweme_detail, key, value)
@@ -135,6 +140,43 @@ class DouyinDbStoreImplement(AbstractStore):
     async def store_creator(self, creator: Dict):
         # 教学版：创作者个人资料不再落库
         pass
+
+
+    async def store_user_action(self, action_item: Dict):
+        account_hash = action_item.get("account_hash")
+        aweme_id = action_item.get("aweme_id")
+        action_type = action_item.get("action_type")
+        async with get_session() as session:
+            result = await session.execute(
+                select(DouyinUserAction).where(
+                    DouyinUserAction.account_hash == account_hash,
+                    DouyinUserAction.aweme_id == aweme_id,
+                    DouyinUserAction.action_type == action_type,
+                )
+            )
+            user_action = result.scalar_one_or_none()
+            if user_action is None:
+                session.add(DouyinUserAction(**action_item))
+                try:
+                    await session.flush()
+                except IntegrityError:
+                    # Another worker may have inserted the same relation after
+                    # our select. Retry as an update under the unique key.
+                    await session.rollback()
+                    result = await session.execute(
+                        select(DouyinUserAction).where(
+                            DouyinUserAction.account_hash == account_hash,
+                            DouyinUserAction.aweme_id == aweme_id,
+                            DouyinUserAction.action_type == action_type,
+                        )
+                    )
+                    user_action = result.scalar_one_or_none()
+                    if user_action is None:
+                        raise
+                    user_action.observed_ts = action_item["observed_ts"]
+            else:
+                user_action.observed_ts = action_item["observed_ts"]
+            await session.commit()
 
 
 class DouyinJsonStoreImplement(AbstractStore):
@@ -188,6 +230,13 @@ class DouyinJsonStoreImplement(AbstractStore):
 
 
 
+    async def store_user_action(self, action_item: Dict):
+        await self.file_writer.write_single_item_to_json(
+            item=action_item,
+            item_type="user_actions",
+        )
+
+
 class DouyinJsonlStoreImplement(AbstractStore):
     def __init__(self):
         self.file_writer = AsyncFileWriter(
@@ -214,12 +263,22 @@ class DouyinJsonlStoreImplement(AbstractStore):
         )
 
 
+    async def store_user_action(self, action_item: Dict):
+        await self.file_writer.write_to_jsonl(
+            item=action_item,
+            item_type="user_actions",
+        )
+
+
 class DouyinSqliteStoreImplement(DouyinDbStoreImplement):
     pass
 
 
 class DouyinMongoStoreImplement(AbstractStore):
     """Douyin MongoDB storage implementation"""
+
+    _user_actions_index_ready = False
+    _user_actions_index_lock = asyncio.Lock()
 
     def __init__(self):
         self.mongo_store = MongoDBStoreBase(collection_prefix="douyin")
@@ -261,6 +320,48 @@ class DouyinMongoStoreImplement(AbstractStore):
     async def store_creator(self, creator_item: Dict):
         # 教学版：创作者个人资料不再落库
         pass
+
+
+    async def store_user_action(self, action_item: Dict):
+        account_hash = action_item.get("account_hash")
+        aweme_id = action_item.get("aweme_id")
+        action_type = action_item.get("action_type")
+        if not account_hash or not aweme_id or not action_type:
+            return
+
+        collection = await self.mongo_store.get_collection("user_actions")
+        store_class = type(self)
+        if not store_class._user_actions_index_ready:
+            async with store_class._user_actions_index_lock:
+                if not store_class._user_actions_index_ready:
+                    await collection.create_index(
+                        [
+                            ("account_hash", 1),
+                            ("aweme_id", 1),
+                            ("action_type", 1),
+                        ],
+                        unique=True,
+                        name="uq_douyin_user_action",
+                    )
+                    store_class._user_actions_index_ready = True
+
+        query = {
+            "account_hash": account_hash,
+            "aweme_id": aweme_id,
+            "action_type": action_type,
+        }
+        await collection.update_one(
+            query,
+            {
+                "$set": {"observed_ts": action_item["observed_ts"]},
+                "$setOnInsert": query,
+            },
+            upsert=True,
+        )
+        utils.logger.info(
+            "[DouyinMongoStoreImplement.store_user_action] "
+            f"Saved {action_type}/{aweme_id} to MongoDB"
+        )
 
 
 class DouyinExcelStoreImplement:
