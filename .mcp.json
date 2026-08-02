@@ -1,18 +1,8 @@
 {
   "mcpServers": {
     "mediacrawler": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "D:/WorkSpaceCoding/MediaCrawler",
-        "python",
-        "-m",
-        "mcp_server"
-      ],
-      "env": {
-        "MEDIACRAWLER_MCP_TRANSPORT": "stdio"
-      }
+      "type": "http",
+      "url": "http://127.0.0.1:8765/mcp"
     }
   }
 }
