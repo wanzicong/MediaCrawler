@@ -588,11 +588,11 @@ wheels = [
 
 [[package]]
 name = "fsspec"
-version = "2026.6.0"
+version = "2026.7.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/10/a1/ae4e3e5003468d6391d2c77b6fa1cd73bd5d13511d81c642d7b28ac90ed4/fsspec-2026.6.0.tar.gz", hash = "sha256:f5bac145310fe30e16e1471bd6840b2d990d609e872251d7e674241822abf01a", size = 313646, upload-time = "2026-06-16T01:57:28.105Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/00/78/f34251dadb8f3921264a1d9b8946f5e542014ee2614b285261b4e40e6775/fsspec-2026.7.0.tar.gz", hash = "sha256:c803c40f4cf860b49dea58ee3e1c33cb9c790520e233537e1340049f89b82a88", size = 317040, upload-time = "2026-07-28T16:34:51.052Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/e5/22/4222d7ddf3da30f363edaa98e329c2bce6c65497c9cb2810931c8b2c0fbc/fsspec-2026.6.0-py3-none-any.whl", hash = "sha256:02e0b71817df9b2169dc30a16832045764def1191b43dcff5bb85bdee212d2a1", size = 203949, upload-time = "2026-06-16T01:57:26.358Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/fd/3c/6a2bf344106328fd04963664a60b9bb6496fc25df8e962fcdc1367285fb9/fsspec-2026.7.0-py3-none-any.whl", hash = "sha256:b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279", size = 206583, upload-time = "2026-07-28T16:34:49.538Z" },
 ]
 
 [[package]]
@@ -744,7 +744,7 @@ wheels = [
 
 [[package]]
 name = "huggingface-hub"
-version = "1.25.1"
+version = "1.26.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
     { name = "click" },
@@ -757,9 +757,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/4b/50/db3771a6e4fad4bd28fb055d4363b51cb0ae98c1aa504b79d41fdcab5483/huggingface_hub-1.25.1.tar.gz", hash = "sha256:21129595ca7a753be479b319913e22cc8808361ac118bd76cc413db831b28a99", size = 928426, upload-time = "2026-07-27T09:24:10.117Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/82/db/3582597f8be0d34bd6881365a26d390854f12893eabdd62dd36de9df5a47/huggingface_hub-1.26.0.tar.gz", hash = "sha256:c8cd4e2df1ba9402f77fce9b509ec1d52debb502551789473f34016acc14e361", size = 936665, upload-time = "2026-07-30T14:12:04.156Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/f7/3f/21e816831c6d16f88a6c784974413fa0421ce8a5d04380c2666ed5b503e5/huggingface_hub-1.25.1-py3-none-any.whl", hash = "sha256:004d4e70350517e24c68a7dbb7dc5e40b2b6aefef8f94bf7a85f6f9835102ea5", size = 774909, upload-time = "2026-07-27T09:24:08.079Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/97/bb/63a644c75b545f3ff394b822e9bd1c4a9586489c618b77a4d8a44a33a23b/huggingface_hub-1.26.0-py3-none-any.whl", hash = "sha256:e8cca670caa5d8dfa7e45bf45e86b466698198cd8150c021bcdb4a86b9252364", size = 780357, upload-time = "2026-07-30T14:12:01.998Z" },
 ]
 
 [[package]]
@@ -1198,7 +1198,7 @@ requires-dist = [
     { name = "uvicorn", specifier = "==0.29.0" },
     { name = "websockets", specifier = ">=15.0.1" },
     { name = "wordcloud", specifier = ">=1.9.6" },
-    { name = "xhshow", specifier = ">=0.1.9" },
+    { name = "xhshow", specifier = ">=0.2.0" },
 ]
 
 [[package]]
@@ -2507,12 +2507,12 @@ wheels = [
 
 [[package]]
 name = "xhshow"
-version = "0.1.9"
+version = "0.2.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
     { name = "pycryptodome" },
 ]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/e5/9a/ed544bea5b6a3702fc232eb774817d7f03a678b5f2ac3d67d3c7698695e6/xhshow-0.1.9.tar.gz", hash = "sha256:5a17cb510e9ab3ca61ef8ce00bd4cae6cbce39bb7b5f8ef38a5a980011883245", size = 55126, upload-time = "2026-02-17T08:05:27.456Z" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/17/16/4305d7a372e41b0cf24e9315f1e9a49a3c9ca7fe1229b7da5737e9096a68/xhshow-0.2.0.tar.gz", hash = "sha256:1ae45ce889d0041d57b6eff5dbcbcc31a06f3df351c80b4a50bac983a0e1fe44", size = 65626, upload-time = "2026-06-11T11:11:10.614Z" }
 wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/7f/c0/2783314af317b7207422e94f74302dbe32c5c9a1641bcfe11c4c073b0b04/xhshow-0.1.9-py3-none-any.whl", hash = "sha256:c4b0d38f4746b8a3f9c08fcfe4628f81c887b27c76b7ba73fa61ff990d1839dc", size = 31289, upload-time = "2026-02-17T08:05:26.58Z" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/8f/6a/4e227e0724606b1965b0036d9558fe25073e46f4ba11b47721e125b3caa3/xhshow-0.2.0-py3-none-any.whl", hash = "sha256:4de6f632ff911621b55335f7772187dcd4eed414142057120a37bfd46ca6d4bb", size = 40918, upload-time = "2026-06-11T11:11:09.696Z" },
 ]

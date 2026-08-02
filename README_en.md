@@ -4,14 +4,14 @@
 
 ### 🤝 Special Thanks to Our Platinum Sponsor
 
-<a href="https://www.browseract.com/?co-from=mediacrawler&redirect=https://github.com/browser-act/skills/tree/main" target="_blank">
-  <img src="docs/static/images/browseract.png" alt="BrowserAct" width="400">
+<a href="https://www.browseract.ai/mediacrawler" target="_blank">
+  <img src="docs/static/images/browseract_ad.jpg" alt="BrowserAct" width="600">
 </a>
 
 <br>
 
-<a href="https://www.browseract.com/?co-from=mediacrawler&redirect=https://github.com/browser-act/skills/tree/main" target="_blank">
-<small>BrowserAct is a browser automation tool designed for AI Agents, featuring anti-bot interception handling, human handoff when tasks get stuck, multi-task parallel isolation, and multi-account independent management, helping Agents complete real-world web tasks more reliably.</small>
+<a href="https://www.browseract.ai/mediacrawler" target="_blank">
+<small>BrowserAct supports extracting data from any website. Just describe the data you need, and BrowserAct will explore and test web pages in a real browser, generating reliable, reusable data collection Bots that return structured results. Built-in stealth browsing and captcha handling, plus high-quality residential proxies. No code required — try it for free now.</small>
 </a>
 
 </div>
@@ -304,10 +304,10 @@ MediaCrawler supports multiple data storage methods, including CSV, JSON, JSONL,
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bloome.im/login?ref=NanmiCoder"><img src="docs/static/images/bloome_logo.png" width="180" alt="Bloome"></a>
+        <a href="https://bloome.im/app?ref=NanmiCoder&utm_medium=github&utm_source=NanmiCoder-MediaCrawler-ivor-202607"><img src="docs/static/images/bloome_logo.png" width="180" alt="Bloome"></a>
       </td>
       <td valign="middle">
-        <a href="https://bloome.im/login?ref=NanmiCoder">Bloome</a> is an AI Agent IM platform — multiple AI agents (Claude, ChatGPT, DeepSeek, etc.) collaborate with you in a single conversation like team members, automatically dividing up the work and cross-checking each other, and directly producing tables, documents, and visual dashboards. Zero config, runs in the cloud, works on both web and mobile, and you can share your configured agents with your team in one click. 👉 <a href="https://bloome.im/login?ref=NanmiCoder">Try Bloome</a>
+        <a href="https://bloome.im/app?ref=NanmiCoder&utm_medium=github&utm_source=NanmiCoder-MediaCrawler-ivor-202607">Bloome</a> is an AI Agent IM platform — multiple AI agents (Claude, ChatGPT, DeepSeek, etc.) collaborate with you in a single conversation like team members, automatically dividing up the work and cross-checking each other, and directly producing tables, documents, and visual dashboards. Zero config, runs in the cloud, works on both web and mobile, and you can share your configured agents with your team in one click. 👉 <a href="https://bloome.im/app?ref=NanmiCoder&utm_medium=github&utm_source=NanmiCoder-MediaCrawler-ivor-202607">Try Bloome</a>
       </td>
     </tr>
     <tr>
