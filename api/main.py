@@ -80,6 +80,18 @@ async def serve_frontend():
     }
 
 
+@app.get("/data")
+async def serve_data_page():
+    """Return data query page"""
+    data_page_path = os.path.join(WEBUI_DIR, "data.html")
+    if os.path.exists(data_page_path):
+        return FileResponse(data_page_path)
+    return {
+        "message": "Data query page not found",
+        "note": "Please ensure data.html exists in the webui directory"
+    }
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok"}

@@ -85,8 +85,25 @@ async def create_tables(db_type: str = None):
 
 
 @asynccontextmanager
-async def get_session() -> AsyncSession:
-    engine = get_async_engine(config.SAVE_DATA_OPTION)
+async def get_session(db_type: str = None) -> AsyncSession:
+    """获取数据库会话
+
+    Args:
+        db_type: 数据库类型，可选值:
+            - "mysql" 或 "db": 使用 MySQL 数据库
+            - "sqlite": 使用 SQLite 数据库
+            - "postgres": 使用 PostgreSQL 数据库
+            - None: 使用 config.SAVE_DATA_OPTION 配置
+    """
+    # 如果未指定 db_type，使用配置
+    if db_type is None:
+        db_type = config.SAVE_DATA_OPTION
+
+    # 如果是文件存储类型，尝试使用 MySQL 作为查询数据库
+    if db_type in ["json", "jsonl", "csv"]:
+        db_type = "mysql"
+
+    engine = get_async_engine(db_type)
     if not engine:
         yield None
         return

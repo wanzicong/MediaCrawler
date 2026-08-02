@@ -23,8 +23,8 @@ import os
 # mysql config
 MYSQL_DB_PWD = os.getenv("MYSQL_DB_PWD", "123456")
 MYSQL_DB_USER = os.getenv("MYSQL_DB_USER", "root")
-MYSQL_DB_HOST = os.getenv("MYSQL_DB_HOST", "localhost")
-MYSQL_DB_PORT = os.getenv("MYSQL_DB_PORT", 3306)
+MYSQL_DB_HOST = os.getenv("MYSQL_DB_HOST", "127.0.0.1")
+MYSQL_DB_PORT = os.getenv("MYSQL_DB_PORT", 3309)
 MYSQL_DB_NAME = os.getenv("MYSQL_DB_NAME", "media_crawler")
 
 mysql_db_config = {
