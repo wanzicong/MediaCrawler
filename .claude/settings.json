@@ -6,5 +6,6 @@
                     "repo": "wanzicong/mediacrawler"
                }
           }
-     }
+     },
+     "enabledMcpjsonServers": ["mediacrawler"]
 }
