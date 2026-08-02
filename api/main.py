@@ -32,7 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from .routers import crawler_router, data_router, websocket_router
+from .routers import crawler_router, data_router, websocket_router, db_router
 
 # Project root directory (used for running subprocesses like uv run main.py)
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -64,6 +64,7 @@ app.add_middleware(
 app.include_router(crawler_router, prefix="/api")
 app.include_router(data_router, prefix="/api")
 app.include_router(websocket_router, prefix="/api")
+app.include_router(db_router, prefix="/api")
 
 
 @app.get("/")
@@ -77,6 +78,18 @@ async def serve_frontend():
         "version": "1.0.0",
         "docs": "/docs",
         "note": "WebUI not found, please build it first: cd webui && npm run build"
+    }
+
+
+@app.get("/data")
+async def serve_data_page():
+    """Return data query page"""
+    data_page_path = os.path.join(WEBUI_DIR, "data.html")
+    if os.path.exists(data_page_path):
+        return FileResponse(data_page_path)
+    return {
+        "message": "Data query page not found",
+        "note": "Please ensure data.html exists in the webui directory"
     }
 
 

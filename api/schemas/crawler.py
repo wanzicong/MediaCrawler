@@ -79,7 +79,7 @@ class CrawlerStartRequest(BaseModel):
     start_page: int = 1
     enable_comments: Optional[bool] = None
     enable_sub_comments: bool = False
-    save_option: SaveDataOptionEnum = SaveDataOptionEnum.JSONL
+    save_option: SaveDataOptionEnum = SaveDataOptionEnum.DB
     cookies: str = ""
     headless: bool = False
     download_media: bool = False
