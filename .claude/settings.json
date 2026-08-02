@@ -1,11 +1,2 @@
 {
-     "extraKnownMarketplaces": {
-          "mediacrawler": {
-               "source": {
-                    "source": "github",
-                    "repo": "wanzicong/mediacrawler"
-               }
-          }
-     },
-     "enabledMcpjsonServers": ["mediacrawler"]
 }
