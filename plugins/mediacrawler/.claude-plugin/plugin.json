@@ -1,7 +1,7 @@
 {
   "name": "mediacrawler",
   "description": "MediaCrawler MCP 插件：小红书/抖音/快手/B站/微博/贴吧/知乎 7 大平台爬取 + 数据回读 + 视频下载转写",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": {
     "name": "wanzicong"
   },
@@ -18,5 +18,6 @@
     "zhihu",
     "media-transcription"
   ],
+  "skills": "./skills/",
   "mcpServers": "./.mcp.json"
 }

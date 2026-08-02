@@ -8,8 +8,8 @@
     {
       "name": "mediacrawler",
       "description": "MediaCrawler MCP 插件：7 大平台社媒爬取 + 数据回读 + 视频转写",
-      "version": "1.0.2",
-      "source": "./",
+      "version": "1.0.3",
+      "source": "./plugins/mediacrawler",
       "author": {
         "name": "wanzicong"
       }
