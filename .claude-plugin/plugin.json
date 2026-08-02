@@ -1,0 +1,22 @@
+{
+  "name": "mediacrawler",
+  "description": "MediaCrawler MCP 插件：小红书/抖音/快手/B站/微博/贴吧/知乎 7 大平台爬取 + 数据回读 + 视频下载转写",
+  "version": "1.0.0",
+  "author": {
+    "name": "wanzicong"
+  },
+  "homepage": "https://github.com/wanzicong/MediaCrawler",
+  "repository": "https://github.com/wanzicong/MediaCrawler",
+  "license": "NON-COMMERCIAL LEARNING LICENSE 1.1（仅限学习研究，禁止商用）",
+  "keywords": [
+    "mcp",
+    "crawler",
+    "xiaohongshu",
+    "douyin",
+    "bilibili",
+    "weibo",
+    "zhihu",
+    "media-transcription"
+  ],
+  "mcpServers": "./.mcp.json"
+}

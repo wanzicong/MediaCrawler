@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "mediacrawler": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "python",
+        "-m",
+        "mcp_server"
+      ],
+      "env": {
+        "MEDIACRAWLER_MCP_TRANSPORT": "stdio"
+      }
+    }
+  }
+}
