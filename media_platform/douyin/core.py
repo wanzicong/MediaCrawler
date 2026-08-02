@@ -28,6 +28,7 @@ from playwright.async_api import (
     BrowserType,
     Page,
     Playwright,
+    TimeoutError as PlaywrightTimeoutError,
     async_playwright,
 )
 
@@ -100,7 +101,14 @@ class DouYinCrawler(AbstractCrawler):
                 await self.browser_context.add_init_script(path="libs/stealth.min.js")
 
             self.context_page = await self.browser_context.new_page()
-            await self.context_page.goto(self.index_url)
+            try:
+                await self.context_page.goto(self.index_url)
+            except PlaywrightTimeoutError:
+                # 抖音首页资源多，30s 内等不到 load 事件属常见网络抖动；
+                # 页面 DOM 通常已就绪，登录检测与二维码弹窗不受影响，继续执行。
+                utils.logger.warning(
+                    "[DouYinCrawler] index page load timeout, continue with partially loaded page"
+                )
 
             self.dy_client = await self.create_douyin_client(httpx_proxy_format)
             explicit_cookie_login = (
