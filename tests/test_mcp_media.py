@@ -106,7 +106,7 @@ async def test_crawl_downloads_then_schedules_background_transcription(
     assert captured["download_media"] is True
     assert captured["transcribe_media"] is False
     assert captured["whisper_backend"] == "local"
-    assert captured["timeout"] == 900
+    assert captured["timeout"] == 0
     assert str(captured["media_run_id"]).startswith("media_")
 
     task_id = response["transcription_jobs"][0]["job_id"]

@@ -24,8 +24,9 @@
      ProactorEventLoop 上 read 子进程 stream 偶发"长时间不前进"现象（实测复现），
      会让 watchdog 误判为卡死。
   2. 心跳线程：每 HEARTBEAT_INTERVAL 秒通过 loop.call_soon_threadsafe 推进时间戳。
-  3. 软超时：连续 PROGRESS_INTERVAL 秒心跳未推进 → kill。
-  4. 硬超时兜底：到 timeout 秒强制 kill。
+  3. 软超时：连续 PROGRESS_INTERVAL 秒心跳未推进 → kill（只杀"假死"，不杀"慢"）。
+  4. 硬超时兜底：到 timeout 秒强制 kill；传 timeout<=0 可关闭硬超时，
+     让慢爬虫跑任意久（此时仅靠上面的软/空闲看门狗防"假死"）。
   5. PYTHONUNBUFFERED=1 + python -u 关闭 Python 输出缓冲。
 """
 
@@ -154,7 +155,8 @@ async def run_crawler(
         whisper_backend: 转写后端，api 或 local
         save_data_option: 数据保存格式 (jsonl/json/csv/sqlite/db/excel)
         save_data_path: 本次运行的文件产物根目录
-        timeout: 硬超时秒数
+        timeout: 硬超时秒数；传 0 或负数表示关闭硬超时，让慢爬虫跑任意久
+            （仍受软/空闲看门狗约束，只在进程完全无输出判"假死"时才 kill）
         on_log: 实时日志行回调（可选）
     """
     cmd = [
@@ -408,7 +410,7 @@ async def run_crawler(
                 except subprocess.TimeoutExpired:
                     pass
                 break
-            if time.time() - start > timeout:
+            if timeout > 0 and time.time() - start > timeout:
                 stderr_chunks.append(
                     f"\n[watchdog] 硬超时 {timeout}s 到达，强制 kill (pid={proc.pid})\n"
                 )

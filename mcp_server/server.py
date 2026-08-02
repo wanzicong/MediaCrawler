@@ -294,8 +294,9 @@ async def _do_crawl(
     effective_get_sub_comment = get_sub_comment and effective_get_comment
     cookies = cookies.strip()
     effective_login_type = "cookie" if cookies else login_type
-    estimated_pages = max(1, (max_notes_count + 19) // 20)
-    crawl_timeout = min(900, max(180, 120 + estimated_pages * 5))
+    # 硬超时传 0：关闭总时长上限，慢爬虫可跑任意久（不被误杀）。
+    # 防"假死"由 crawler_runner 内部的软/空闲看门狗负责（进程完全无输出才 kill）。
+    crawl_timeout = 0
 
     # MCP 中只同步等待下载。转写由 MCP 后台任务执行，避免长视频阻塞工具调用。
     try:
@@ -317,7 +318,7 @@ async def _do_crawl(
             media_run_id=media_run_id,
             save_data_option=save_data_option,
             save_data_path=str(run_root.resolve()),
-            timeout=900 if download_media or transcribe_media else crawl_timeout,
+            timeout=crawl_timeout,
         )
     except Exception as exc:
         _write_run_manifest(
