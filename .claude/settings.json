@@ -1,0 +1,10 @@
+{
+     "extraKnownMarketplaces": {
+          "githubstars": {
+               "source": {
+                    "source": "github",
+                    "repo": "wanzicong/githubstars"
+               }
+          }
+     }
+}
