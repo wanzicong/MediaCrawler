@@ -46,3 +46,13 @@ schema_mysql.sql export-ignore
 .pytest_cache/ export-ignore
 .ruff_cache/ export-ignore
 __pycache__/ export-ignore
+.claude/ export-ignore
+.github/ export-ignore
+README.md export-ignore
+README_en.md export-ignore
+README_es.md export-ignore
+start_mcp_server.bat export-ignore
+stop_mcp_server.bat export-ignore
+.gitignore export-ignore
+.python-version export-ignore
+.gitattributes export-ignore
