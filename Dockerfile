@@ -4,6 +4,8 @@
 
 # ---------- 阶段 1:构建 WebUI 前端 ----------
 FROM node:20-alpine AS frontend
+# npm 走 npmmirror 国内镜像,无需代理
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 WORKDIR /build/webui
 COPY webui/package.json webui/package-lock.json ./
 RUN npm ci
@@ -14,7 +16,7 @@ RUN npm run build
 # ---------- 阶段 2:运行时 ----------
 FROM mcr.microsoft.com/playwright/python:v1.61.0-jammy
 
-# 构建期代理(仅构建时生效,通过 --build-arg 注入;不带值则空,不影响无代理环境)
+# 构建期代理(可选;默认空,通过 --build-arg 注入;不配也能用国内源跑通)
 ARG HTTP_PROXY=""
 ARG HTTPS_PROXY=""
 ARG NO_PROXY="localhost,127.0.0.1"
@@ -25,8 +27,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DISPLAY=:99 \
     MEDIACRAWLER_DOCKER=true
 
-# 系统依赖:Xvfb(虚拟显示)、真实 Chrome(CDP 用)、supervisord(进程管理)、中文字体
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# apt 换阿里云镜像(jammy 是 22.04 LTS);uv/pip 换阿里云 PyPI;Chrome 从 npmmirror 下载(替代 dl.google.com)
+RUN sed -i 's@archive.ubuntu.com@mirrors.aliyun.com@g; s@security.ubuntu.com@mirrors.aliyun.com@g' /etc/apt/sources.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
         xvfb \
         supervisor \
         wget \
@@ -34,25 +37,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         fonts-noto-cjk \
         curl \
-    && wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get install -y --no-install-recommends /tmp/google-chrome.deb \
-    && rm -f /tmp/google-chrome.deb \
+        x11vnc \
+        novnc \
+        websockify \
+    && wget -q -O /tmp/chrome-linux64.zip https://registry.npmmirror.com/-/binary/chrome-for-testing/141.0.7390.65/linux64/chrome-linux64.zip \
+    && apt-get install -y --no-install-recommends unzip \
+    && unzip -q /tmp/chrome-linux64.zip -d /opt/ \
+    && mv /opt/chrome-linux64 /opt/chrome \
+    && ln -sf /opt/chrome/chrome /usr/local/bin/google-chrome \
+    && rm -f /tmp/chrome-linux64.zip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Node.js 20(抖音/快手等平台的 execjs JS 签名运行时需要)。
-# 用 NodeSource 官方源,单包可靠;不走 ubuntu 自带的旧版 nodejs/npm 依赖链。
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# NodeSource 官方源在国外,改用 npmmirror 的 Node.js 二进制镜像直接解压(tar.gz 兼容性更好,无需 xz)
+RUN wget -q -O /tmp/node.tar.gz https://registry.npmmirror.com/-/binary/node/v20.18.1/node-v20.18.1-linux-x64.tar.gz \
+    && tar -xzf /tmp/node.tar.gz -C /usr/local --strip-components=1 \
+    && rm -f /tmp/node.tar.gz \
+    && node -v && npm -v
 
-# 安装 uv(项目用 uv 管理依赖)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# 安装 uv(用 pip 从阿里云 PyPI 装,替代 ghcr.io/astral-sh/uv 二进制)
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ uv \
+    && uv --version
 
 WORKDIR /app
 
-# 先拷贝依赖声明,利用构建缓存
+# 先拷贝依赖声明,利用构建缓存;uv 走阿里云 PyPI 镜像
+ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/ \
+    UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple/
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev
 
@@ -72,6 +84,6 @@ RUN mkdir -p /app/data /app/browser_data /app/logs
 
 COPY docker/supervisord.conf /etc/supervisor/conf.d/mediacrawler.conf
 
-EXPOSE 8765 8080
+EXPOSE 8765 8080 6080
 
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
