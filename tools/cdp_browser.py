@@ -232,7 +232,7 @@ class CDPBrowserManager:
             # Simple socket connection test
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(5)
-                result = s.connect_ex(("localhost", debug_port))
+                result = s.connect_ex((config.CDP_DEBUG_HOST, debug_port))
                 if result == 0:
                     utils.logger.info(
                         f"[CDPBrowserManager] CDP port {debug_port} is accessible"
@@ -293,7 +293,7 @@ class CDPBrowserManager:
             # trust_env=False: 不走系统代理，避免 127.0.0.1 CDP 端口请求被代理拦截返回 502
             async with httpx.AsyncClient(trust_env=False) as client:
                 response = await client.get(
-                    f"http://localhost:{debug_port}/json/version", timeout=10
+                    f"http://{config.CDP_DEBUG_HOST}:{debug_port}/json/version", timeout=10
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -319,7 +319,7 @@ class CDPBrowserManager:
             if config.CDP_CONNECT_EXISTING:
                 # Existing browser remote debugging in Chrome 136+ does not expose
                 # /json/version. Connect directly and wait for user confirmation.
-                ws_url = f"ws://localhost:{self.debug_port}/devtools/browser"
+                ws_url = f"ws://{config.CDP_DEBUG_HOST}:{self.debug_port}/devtools/browser"
                 utils.logger.info(f"[CDPBrowserManager] Connecting to existing browser via CDP: {ws_url}")
                 utils.logger.info(
                     "[CDPBrowserManager] Please check your browser for a confirmation dialog and accept it"

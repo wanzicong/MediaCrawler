@@ -24,8 +24,10 @@
 # @Desc    : Crawler utility functions
 
 import base64
+import os
 import random
 import re
+import time
 import urllib
 import urllib.parse
 from io import BytesIO
@@ -34,6 +36,7 @@ from typing import Dict, List, Optional, Tuple, cast
 from PIL import Image, ImageDraw, ImageShow
 from playwright.async_api import BrowserContext, Cookie, Page
 
+import config
 from . import utils
 from .httpx_util import make_async_client
 
@@ -96,6 +99,20 @@ def show_qrcode(qr_code) -> None:  # type: ignore
     new_image.paste(image, (10, 10))
     draw = ImageDraw.Draw(new_image)
     draw.rectangle((0, 0, width + 19, height + 19), outline=(0, 0, 0), width=1)
+
+    # Docker 等无 GUI 环境下无法弹窗，改为把二维码保存到挂载目录，供外部打开扫码。
+    if config.DOCKER_MODE:
+        output_dir = os.path.join(os.getcwd(), config.QRCODE_OUTPUT_DIR)
+        os.makedirs(output_dir, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        file_path = os.path.join(output_dir, f"login_qrcode_{timestamp}.png")
+        new_image.save(file_path)
+        utils.logger.info(
+            f"[show_qrcode] 当前为 Docker 模式，登录二维码已保存到: {file_path}，"
+            "请在容器外打开该图片完成扫码"
+        )
+        return
+
     del ImageShow.UnixViewer.options["save_all"]
     new_image.show()
 

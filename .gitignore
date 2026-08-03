@@ -185,3 +185,7 @@ debug_tools
 database/*.db
 /videodl_outputs/
 .omx/
+
+# 本地运行产物
+/logs/
+/.playwright-mcp/

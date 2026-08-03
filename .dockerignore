@@ -1,0 +1,45 @@
+# 版本控制
+.git/
+.gitignore
+.gitattributes
+
+# Python 虚拟环境与缓存
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 前端依赖与构建缓存(镜像内重新构建)
+node_modules/
+webui/node_modules/
+
+# 运行期数据(应通过 volume 挂载,不打进镜像)
+data/
+browser_data/
+logs/
+videodl_outputs/
+subtitles/
+*.log
+
+# 文档与说明(运行时不需要)
+docs/
+README*.md
+LICENSE
+
+# 数据库快照与本地数据库
+schema_mysql.sql
+database/sqlite_tables.db
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Docker 自身(避免上下文递归)
+Dockerfile
+docker-compose.yml
+.dockerignore

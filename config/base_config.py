@@ -104,6 +104,11 @@ ENABLE_CDP_MODE = True
 # 如果端口被占用，系统会自动尝试下一个可用端口
 CDP_DEBUG_PORT = 9222
 
+# CDP 调试主机，用于与浏览器通信
+# 默认为 localhost（浏览器与爬虫同机/同容器）。
+# 当浏览器独立部署在另一容器或主机时（方案 B），改为对应主机名或 IP。
+CDP_DEBUG_HOST = "localhost"
+
 # 自定义浏览器路径（可选）
 # 如果为空，系统会自动检测 Chrome/Edge 的安装路径
 # Windows 示例: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
@@ -127,6 +132,16 @@ CDP_CONNECT_EXISTING = False
 # 程序结束时是否自动关闭浏览器
 # 设置为False保持浏览器运行，方便调试
 AUTO_CLOSE_BROWSER = True
+
+# ==================== Docker 部署配置 ====================
+# 是否运行在 Docker 容器中（无 GUI 环境）。
+# 开启后，扫码登录的二维码不再弹窗展示，而是保存为图片文件供外部打开扫码。
+# 可用环境变量 MEDIACRAWLER_DOCKER=true 覆盖。
+DOCKER_MODE = _env_bool("MEDIACRAWLER_DOCKER", False)
+
+# 二维码图片输出目录（相对项目根目录），仅 DOCKER_MODE 下生效。
+# 建议挂载为 volume，容器外即可打开扫码。
+QRCODE_OUTPUT_DIR = "data/qrcode"
 
 # 数据保存类型配置，支持: csv, db, json, jsonl, sqlite, excel, postgres。最好保存到DB，具有去重功能
 # 默认 sqlite：MediaCrawler SQLAlchemy ORM 支持零依赖落盘到 database/sqlite_tables.db。
