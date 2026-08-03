@@ -56,6 +56,12 @@ WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev
 
+# 安装与 uv 锁定 playwright 版本匹配的 chromium(标准模式 launch_persistent_context 需要;
+# 基础镜像自带的浏览器对应旧版 playwright,uv sync 升级后会因版本不匹配报 "Executable doesn't exist")。
+# 用 npmmirror 国内镜像加速;--with-deps 不需要(系统依赖基础镜像 playwright 已带齐)。
+ENV PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
+RUN uv run playwright install chromium
+
 # 拷贝项目代码(先排除 api/webui,用下面的前端产物覆盖)
 COPY . .
 # 拷贝前端构建产物(覆盖 api/webui/)

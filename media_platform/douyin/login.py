@@ -171,7 +171,16 @@ class DouYinLogin(AbstractLogin):
             utils.logger.error(f"[DouYinLogin.popup_login_dialog] login dialog box does not pop up automatically, error: {e}")
             utils.logger.info("[DouYinLogin.popup_login_dialog] login dialog box does not pop up automatically, we will manually click the login button")
             login_button_ele = self.context_page.locator("xpath=//p[text() = '登录']")
-            await login_button_ele.click()
+            try:
+                await login_button_ele.click(timeout=1000 * 8)
+            except Exception as click_err:
+                # Xvfb/远程虚拟显示下,登录按钮常被遮罩层拦截 pointer events 导致
+                # playwright 一直等待"可点击"而超时。此时面板其实已存在,改用
+                # dispatch_event 直接派发点击,绕过遮挡检测。
+                utils.logger.warning(
+                    f"[DouYinLogin.popup_login_dialog] normal click blocked, fallback to dispatch_event: {click_err}"
+                )
+                await login_button_ele.first.dispatch_event("click")
             await asyncio.sleep(0.5)
 
     async def login_by_qrcode(self):
