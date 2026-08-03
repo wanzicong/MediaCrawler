@@ -387,7 +387,7 @@ async def test_mcp_rejects_excessive_max_notes_before_subprocess(
 
 
 @pytest.mark.asyncio
-async def test_mcp_scales_timeout_for_large_accepted_crawl(
+async def test_mcp_disables_timeout_for_large_accepted_crawl(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -412,7 +412,8 @@ async def test_mcp_scales_timeout_for_large_accepted_crawl(
     )
 
     assert response["success"] is True
-    assert captured["timeout"] == 370
+    # 硬超时已关闭（server.py 传 0）,慢爬虫可跑任意久,防假死由空闲看门狗负责
+    assert captured["timeout"] == 0
 
 
 def test_data_reader_supports_excel_workbook_sheets(
