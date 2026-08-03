@@ -14,6 +14,11 @@ RUN npm run build
 # ---------- 阶段 2:运行时 ----------
 FROM mcr.microsoft.com/playwright/python:v1.61.0-jammy
 
+# 构建期代理(仅构建时生效,通过 --build-arg 注入;不带值则空,不影响无代理环境)
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
+ARG NO_PROXY="localhost,127.0.0.1"
+
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8 \
@@ -28,9 +33,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gnupg \
         ca-certificates \
         fonts-noto-cjk \
+        curl \
     && wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get install -y --no-install-recommends /tmp/google-chrome.deb \
     && rm -f /tmp/google-chrome.deb \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20(抖音/快手等平台的 execjs JS 签名运行时需要)。
+# 用 NodeSource 官方源,单包可靠;不走 ubuntu 自带的旧版 nodejs/npm 依赖链。
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
