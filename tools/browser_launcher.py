@@ -85,6 +85,10 @@ class BrowserLauncher:
                 "/usr/bin/google-chrome-stable",
                 "/usr/bin/google-chrome-beta",
                 "/usr/bin/google-chrome-unstable",
+                # 部分发行版/手动安装会放到 /usr/local/bin(如本容器 Chrome 解压装在此)
+                "/usr/local/bin/google-chrome",
+                "/usr/local/bin/google-chrome-stable",
+                "/usr/local/bin/chrome",
                 "/usr/bin/chromium-browser",
                 "/usr/bin/chromium",
                 "/snap/bin/chromium",

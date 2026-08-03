@@ -45,6 +45,9 @@ RUN sed -i 's@archive.ubuntu.com@mirrors.aliyun.com@g; s@security.ubuntu.com@mir
     && unzip -q /tmp/chrome-linux64.zip -d /opt/ \
     && mv /opt/chrome-linux64 /opt/chrome \
     && ln -sf /opt/chrome/chrome /usr/local/bin/google-chrome \
+    # playwright channel="chrome" 固定从 /opt/google/chrome/chrome 查找,建符号链接兼容
+    && mkdir -p /opt/google/chrome \
+    && ln -sf /opt/chrome/chrome /opt/google/chrome/chrome \
     && rm -f /tmp/chrome-linux64.zip \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
