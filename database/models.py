@@ -95,6 +95,7 @@ class DouyinAweme(Base):
     __tablename__ = 'douyin_aweme'
     id = Column(Integer, primary_key=True, comment='主键ID')
     creator_hash = Column(String(64), index=True, comment='创作者匿名哈希')
+    sec_uid = Column(String(255), index=True, comment='创作者真实 sec_uid(creator 模式复用)')
     nickname = Column(Text, comment='用户昵称(已脱敏)')
     add_ts = Column(BigInteger, comment='添加时间戳')
     last_modify_ts = Column(BigInteger, comment='最后修改时间戳')
@@ -156,6 +157,7 @@ class DouyinAwemeComment(Base):
     __tablename__ = 'douyin_aweme_comment'
     id = Column(Integer, primary_key=True, comment='主键ID')
     creator_hash = Column(String(64), index=True, comment='创作者匿名哈希')
+    sec_uid = Column(String(255), index=True, comment='评论者真实 sec_uid')
     nickname = Column(Text, comment='用户昵称(已脱敏)')
     add_ts = Column(BigInteger, comment='添加时间戳')
     last_modify_ts = Column(BigInteger, comment='最后修改时间戳')

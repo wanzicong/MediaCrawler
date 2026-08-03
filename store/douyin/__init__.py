@@ -197,6 +197,7 @@ async def update_douyin_aweme(aweme_item: Dict):
         "desc": aweme_item.get("desc", ""),
         "create_time": aweme_item.get("create_time"),
         "creator_hash": anonymize_user_id(user_info.get("uid")),  # 创作者匿名哈希(不存原始 uid)
+        "sec_uid": user_info.get("sec_uid") or "",  # 创作者真实 sec_uid(creator 模式复用)
         "nickname": mask_nickname(user_info.get("nickname")),  # 用户昵称(已脱敏)
         "liked_count": str(interact_info.get("digg_count")),
         "collected_count": str(interact_info.get("collect_count")),
@@ -245,6 +246,7 @@ async def update_dy_aweme_comment(aweme_id: str, comment_item: Dict):
         "aweme_id": aweme_id,
         "content": comment_item.get("text"),
         "creator_hash": anonymize_user_id(user_info.get("uid")),  # 创作者匿名哈希(不存原始 uid)
+        "sec_uid": user_info.get("sec_uid") or "",  # 评论者真实 sec_uid
         "nickname": mask_nickname(user_info.get("nickname")),  # 用户昵称(已脱敏)
         "sub_comment_count": str(comment_item.get("reply_comment_total", 0)),
         "like_count": (comment_item.get("digg_count") if comment_item.get("digg_count") else 0),

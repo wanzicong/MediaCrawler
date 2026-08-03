@@ -3,10 +3,11 @@
 教学版回归测试(抖音 douyin):确保 store/douyin 存储链路不再持久化可定位真人的
 用户个人信息。
 
-教学版约定:用户 ID(uid/sec_uid/short_user_id/user_unique_id)/IP/头像/签名/性别
+教学版约定:用户 ID(uid/short_user_id/user_unique_id)/IP/头像/签名/性别
 一律不持久化;原始 uid 经 tools.user_hash.anonymize_user_id 转成 creator_hash
 (sha256 截断 16 位)写入;昵称保留但经 mask_nickname 中间脱敏。desc(作品描述)是
 内容字段,保留。
+例外:sec_uid(创作者真实 ID)为支持 creator 模式复用而允许落库,断言其正常写入。
 
 覆盖:
 1. test_douyin_aweme_masks_user_info
@@ -42,10 +43,14 @@ from tools.user_hash import anonymize_user_id, mask_nickname
 
 
 # 抖音教学版禁用字段(键):不得作为存储 dict 的 key 出现。
+# 例外:sec_uid 是创作者真实 ID,为支持 creator 模式复用而允许落库(见 ALLOWED_SEC_UID)。
 FORBIDDEN_KEYS = {
-    "user_id", "sec_uid", "short_user_id", "user_unique_id",
+    "user_id", "short_user_id", "user_unique_id",
     "avatar", "user_signature", "ip_location",
 }
+
+# 允许落库的创作者真实 ID(仅抖音):不再视为敏感,需断言正常写入。
+ALLOWED_SEC_UID = {"sec_uid"}
 
 
 # ----------------------------- mock payload -----------------------------
@@ -150,14 +155,15 @@ def _assert_no_forbidden(captured: dict, label: str):
 
 
 def _assert_raw_values_absent(captured: dict, raw_values, label: str):
-    """禁用的原始敏感值(uid/sec_uid/头像/签名/IP 等)不得出现在任何存储值里。
-    creator_hash 是由 uid 派生的匿名哈希(已单独断言 ≠ 原文),不参与子串扫描。"""
+    """禁用的原始敏感值(uid/头像/签名/IP 等)不得出现在任何存储值里。
+    creator_hash 是由 uid 派生的匿名哈希(已单独断言 ≠ 原文),不参与子串扫描;
+    sec_uid 已放开落库,其键值跳过扫描(见 ALLOWED_SEC_UID)。"""
     leaked = []
     for rv in raw_values:
         if not rv:
             continue
         for k, v in captured.items():
-            if k == "creator_hash":
+            if k == "creator_hash" or k in ALLOWED_SEC_UID:
                 continue
             if isinstance(v, str) and rv in v:
                 leaked.append((k, rv))
@@ -202,6 +208,8 @@ def test_douyin_aweme_masks_user_info():
     assert captured.get("nickname")
     assert captured["nickname"] != raw_nick
     assert captured["nickname"] == mask_nickname(raw_nick)
+    # 4b. sec_uid 已放开落库:等于原始 sec_uid(creator 模式复用)
+    assert captured.get("sec_uid") == aweme["author"]["sec_uid"]
     # 5. 内容字段保留(desc/title 是作品描述,不禁用)
     assert captured.get("desc") == aweme["desc"]
     assert captured.get("title") == aweme["desc"]
@@ -252,6 +260,8 @@ def test_douyin_comment_masks_user_info():
     assert captured.get("nickname")
     assert captured["nickname"] != raw_nick
     assert captured["nickname"] == mask_nickname(raw_nick)
+    # 评论者 sec_uid 落库
+    assert captured.get("sec_uid") == comment["user"]["sec_uid"]
 
     # 评论内容/ID 保留
     assert captured.get("content") == comment["text"]
@@ -285,6 +295,7 @@ def test_douyin_store_end_to_end_sqlite(monkeypatch):
     assert obj.aweme_id == aweme["aweme_id"]
     assert obj.creator_hash == anonymize_user_id(raw_uid)
     assert obj.creator_hash != raw_uid
+    assert obj.sec_uid == aweme["author"]["sec_uid"]
     assert obj.nickname == mask_nickname(raw_nick)
     assert obj.nickname != raw_nick
     assert obj.title == aweme["desc"]
@@ -323,6 +334,7 @@ def test_douyin_store_end_to_end_sqlite(monkeypatch):
     assert row.aweme_id == aweme["aweme_id"]
     assert row.creator_hash == anonymize_user_id(raw_uid)
     assert row.creator_hash != raw_uid
+    assert row.sec_uid == aweme["author"]["sec_uid"]
     assert row.nickname == mask_nickname(raw_nick)
     assert row.nickname != raw_nick
     assert row.desc == aweme["desc"]
@@ -350,6 +362,7 @@ def test_douyin_store_end_to_end_sqlite(monkeypatch):
     comment_obj = DouyinAwemeComment(**captured_comment)  # 不抛异常即对得上
     assert comment_obj.comment_id == comment["cid"]
     assert comment_obj.creator_hash == anonymize_user_id(comment["user"]["uid"])
+    assert comment_obj.sec_uid == comment["user"]["sec_uid"]
     assert comment_obj.nickname == mask_nickname(comment["user"]["nickname"])
     _assert_no_forbidden(captured_comment, "douyin_comment_orm_construct")
     comment_orm_cols = {c.name for c in DouyinAwemeComment.__table__.columns}

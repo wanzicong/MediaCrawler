@@ -16,8 +16,9 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # 统一的禁用字段名(键)。昵称字段(nickname/user_nickname/screen_name/name/user_name)允许保留(值需脱敏)。
+# 例外:sec_uid(抖音创作者真实 ID)为支持 creator 模式复用而允许落库,不再列入禁用。
 FORBIDDEN_KEYS = {
-    "user_id", "sec_uid", "short_user_id", "user_unique_id", "user_signature",
+    "user_id", "short_user_id", "user_unique_id", "user_signature",
     "avatar", "user_avatar", "face", "sign", "profile_url", "user_link",
     "url_token", "user_url_token", "ip_location", "ip_address", "gender", "sex",
     "up_id", "fan_id", "up_name", "fan_name", "up_avatar", "fan_avatar",
