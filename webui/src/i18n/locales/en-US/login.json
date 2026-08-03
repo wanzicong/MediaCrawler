@@ -1,0 +1,13 @@
+{
+  "title": "QR Code Login",
+  "scanHint": "Scan with the platform app to log in",
+  "refresh": "Refresh",
+  "checking": "Checking QR code…",
+  "notReady": "No QR code yet",
+  "notReadyHint": "A login QR code will appear after the crawler starts",
+  "expired": "QR code expired",
+  "expiredHint": "Click refresh to get the latest QR code",
+  "openBrowser": "Open Real Browser",
+  "browserHint": "Operate the in-container browser via noVNC",
+  "close": "Close"
+}

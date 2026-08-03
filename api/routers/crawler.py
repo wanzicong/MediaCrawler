@@ -16,8 +16,13 @@
 # 详细许可条款请参阅项目根目录下的LICENSE文件。
 # 使用本代码即表示您同意遵守上述原则和LICENSE中的所有条款。
 
-from fastapi import APIRouter, HTTPException
+from pathlib import Path
+from typing import Optional
 
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+
+import config
 from ..schemas import CrawlerStartRequest, CrawlerStatusResponse
 from ..services import crawler_manager
 
@@ -61,3 +66,46 @@ async def get_logs(limit: int = 100):
     """Get recent logs"""
     logs = crawler_manager.logs[-limit:] if limit > 0 else crawler_manager.logs
     return {"logs": [log.model_dump() for log in logs]}
+
+
+def _find_latest_qrcode() -> tuple[Optional[Path], float]:
+    """Find the most recent login qrcode image, return (path, mtime_epoch)."""
+    qr_dir = Path(crawler_manager._project_root) / config.QRCODE_OUTPUT_DIR
+    if not qr_dir.is_dir():
+        return None, 0.0
+    candidates = sorted(
+        qr_dir.glob("login_qrcode_*.png"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
+        return None, 0.0
+    latest = candidates[0]
+    return latest, latest.stat().st_mtime
+
+
+@router.get("/qrcode")
+async def get_login_qrcode():
+    """Return the latest login qrcode image for in-page display.
+
+    The crawler subprocess writes the qrcode to QRCODE_OUTPUT_DIR when it
+    needs the user to scan (Docker mode). We only serve a qrcode while a
+    crawler is running and the image is fresh (<= qrcode_max_age seconds),
+    so the frontend does not show a stale code after login succeeded.
+    """
+    import time
+
+    path, mtime = _find_latest_qrcode()
+    if path is None:
+        raise HTTPException(status_code=404, detail="no qrcode available")
+
+    # 二维码有效期短(各平台约 1-3 分钟),过期的不给前端展示
+    max_age = 180
+    if time.time() - mtime > max_age:
+        raise HTTPException(status_code=404, detail="qrcode expired")
+
+    return FileResponse(
+        str(path),
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )

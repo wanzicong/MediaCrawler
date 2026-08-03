@@ -1,6 +1,6 @@
 services:
   mediacrawler:
-    build: .
+    image: mediacrawler:cn-mirror
     container_name: mc
     environment:
       MEDIACRAWLER_DOCKER: "true"
@@ -15,6 +15,7 @@ services:
     ports:
       - "8765:8765"   # MCP 服务
       - "8080:8080"   # API + WebUI
+      - "6080:6080"   # noVNC 网页(真实浏览器画面,可交互)
     # Chrome 在容器内必须给足共享内存,否则渲染大页面崩溃
     shm_size: 2gb
     restart: unless-stopped

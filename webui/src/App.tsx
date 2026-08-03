@@ -6,6 +6,7 @@ import { AuthorFooter } from '@/components/layout/AuthorFooter'
 import { CrawlerConfigPanel } from '@/components/config/CrawlerConfigPanel'
 import { EnvironmentCheck, isEnvChecked } from '@/components/env/EnvironmentCheck'
 import { LicenseDisclaimer, isLicenseAccepted } from '@/components/license/LicenseDisclaimer'
+import { LoginPanel } from '@/components/login/LoginPanel'
 
 function App() {
   // Initialize by checking localStorage if license has been accepted
@@ -53,6 +54,9 @@ function App() {
         {/* Console - Collapsible Terminal */}
         <MainContent />
       </div>
+
+      {/* Login QR Code Panel - Shows while crawler runs with qrcode login */}
+      <LoginPanel />
 
       {/* Author Footer */}
       <AuthorFooter />

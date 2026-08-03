@@ -1,0 +1,13 @@
+{
+  "title": "扫码登录",
+  "scanHint": "请使用对应平台 App 扫码完成登录",
+  "refresh": "刷新",
+  "checking": "正在检测二维码…",
+  "notReady": "暂无二维码",
+  "notReadyHint": "爬虫启动后会自动生成登录二维码",
+  "expired": "二维码已过期",
+  "expiredHint": "点击刷新获取最新二维码",
+  "openBrowser": "打开真实浏览器",
+  "browserHint": "通过 noVNC 直接操作容器内浏览器",
+  "close": "关闭"
+}
